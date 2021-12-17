@@ -63,6 +63,8 @@ abstract_file::abstract_file(void (*do_dispose)(abstract_file *))
 	__io_mode = 0;
 	__status_bits = 0;
 
+	infoLogger() << "abstract_file ctor\n\r" << this << frg::endlog;
+
 	global_file_list().push_back(this);
 }
 
@@ -302,7 +304,9 @@ int abstract_file::_init_type() {
 int abstract_file::_init_bufmode() {
 	if(_bufmode != buffer_mode::unknown)
 		return 0;
-
+	infoLogger() << "this = " << this << frg::endlog;
+	infoLogger() << "_bufmode = " << &_bufmode << frg::endlog;
+	
 	if(determine_bufmode(&_bufmode))
 		return -1;
 	__ensure(_bufmode != buffer_mode::unknown);
@@ -394,7 +398,9 @@ void abstract_file::_ensure_allocation() {
 // --------------------------------------------------------------------------------------
 
 fd_file::fd_file(int fd, void (*do_dispose)(abstract_file *), bool force_unbuffered)
-: abstract_file{do_dispose}, _fd{fd}, _force_unbuffered{force_unbuffered} { }
+: abstract_file{do_dispose}, _fd{fd}, _force_unbuffered{force_unbuffered} {
+	infoLogger() << "fd_file ctor\n\r" << this << frg::endlog;
+}
 
 int fd_file::fd() {
 	return _fd;
@@ -425,6 +431,8 @@ int fd_file::determine_type(stream_type *type) {
 
 int fd_file::determine_bufmode(buffer_mode *mode) {
 	// When isatty() is not implemented, we fall back to the safest default (no buffering).
+	infoLogger() << "hello determine_bufmode world" << frg::endlog;
+	infoLogger() << "sys_isatty = " << (uint64_t)(mlibc::sys_isatty) << frg::endlog;
 	if(!mlibc::sys_isatty) {
 		MLIBC_MISSING_SYSDEP();
 		*mode = buffer_mode::no_buffer;

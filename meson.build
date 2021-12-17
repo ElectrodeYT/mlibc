@@ -52,7 +52,7 @@ if not headers_only
 	add_project_arguments('-std=c++20', language: 'cpp')
 	add_project_arguments('-fno-rtti', '-fno-exceptions', language: 'cpp')
 	add_project_arguments('-Wall', '-Wextra', language: ['c', 'cpp'])
-	add_project_link_arguments('-nostdlib', language: ['c', 'cpp'])
+	add_project_link_arguments('-nostdlib', '-Wl,-shared', language: ['c', 'cpp'])
 
 	searchdirs = run_command(c_compiler.cmd_array(), '-print-search-dirs',
 				check: true).stdout()
@@ -133,7 +133,7 @@ elif host_machine.system() == 'dripos'
 	libc_include_dirs += include_directories('sysdeps/dripos/include')
 	subdir('sysdeps/dripos')
 elif host_machine.system() == 'hos'
-	disable_linux_option = true
+	# disable_linux_option = true
 	rtdl_include_dirs += include_directories('sysdeps/hos/include')
 	libc_include_dirs += include_directories('sysdeps/hos/include')
 	subdir('sysdeps/hos')

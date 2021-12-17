@@ -1,14 +1,13 @@
 
 rtdl_sources += files(
 	'generic/generic.cpp',
-	'generic/ipc.cpp'
 )
 
 libc_sources += files(
 	'generic/entry.cpp',
 	'generic/generic.cpp',
 	'generic/thread_entry.S',
-	'generic/ipc.cpp'
+	'generic/thread.cpp',
 )
 
 if not no_headers
@@ -35,12 +34,12 @@ if not no_headers
 		'include/abi-bits/pid_t.h',
 		'include/abi-bits/uid_t.h',
 		'include/abi-bits/wait.h',
+		'include/abi-bits/limits.h',
 		subdir: 'abi-bits'
 	)
 	install_headers(
-		'include/hos/ipc.h',
 		'include/hos/syscalls.h',
-		subdie: 'hos'
+		subdir: 'hos'
 	)
 endif
 
