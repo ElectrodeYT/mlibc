@@ -27,8 +27,8 @@ pid_t sys_fork() {
 }
 
 uint64_t sys_mmap(uint64_t pointer, size_t size, int flags) {
-    return syscall_3arg_1ret(SYSCALL_MMAP, pointer, (uint64_t)size, (uint64_t)flags);
-}
+    return syscall_3arg_1ret(SYSCALL_MMAP, (uint64_t)size, pointer, (uint64_t)flags);
+} 
 
 int sys_munmap(uint64_t pointer, size_t size) {
     return (int)syscall_2arg_1ret(SYSCALL_MUNMAP, pointer, (uint64_t)size);
