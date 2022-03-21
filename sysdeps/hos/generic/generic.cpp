@@ -125,7 +125,8 @@ int sys_clone(void *entry, void *user_arg, void *tcb, pid_t *tid_out) {
 }
 
 int sys_tcb_set(void *pointer) {
-    return ENOSYS;
+    //return ENOSYS;
+    return 0;
     (void)pointer;
 }
 
