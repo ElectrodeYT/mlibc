@@ -1,7 +1,9 @@
 
 #include <errno.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <wchar.h>
+#include <wctype.h>
 #include <bits/ensure.h>
 
 #include <mlibc/charcode.hpp>
@@ -174,10 +176,15 @@ size_t wcsrtombs(char *mbs, const wchar_t **wcsp, size_t mb_limit, mbstate_t *st
 	mlibc::code_seq<char> nseq{mbs, mbs + mb_limit};
 	mlibc::code_seq<const wchar_t> wseq{*wcsp, nullptr};
 
-	__ensure(mbs && "Handle !mbs case as in mbstowcs()");
-
 	if(!stp)
 		stp = &wcsrtombs_state;
+
+	if(!mbs) {
+		size_t size;
+		if(auto e = cc->encode_wtranscode_length(wseq, &size, *stp); e != mlibc::charcode_error::null)
+			__ensure(!"decode_wtranscode() errors are not handled");
+		return size;
+	}
 
 	if(auto e = cc->encode_wtranscode(nseq, wseq, *stp); e != mlibc::charcode_error::null) {
 		__ensure(!"encode_wtranscode() errors are not handled");
@@ -197,10 +204,15 @@ size_t wcsnrtombs(char *mbs, const wchar_t **wcsp, size_t wc_limit, size_t mb_li
 	mlibc::code_seq<char> nseq{mbs, mbs + mb_limit};
 	mlibc::code_seq<const wchar_t> wseq{*wcsp, (*wcsp) + wc_limit};
 
-	__ensure(mbs && "Handle !mbs case as in mbstowcs()");
-
 	if(!stp)
 		stp = &wcsrtombs_state;
+
+	if(!mbs) {
+		size_t size;
+		if(auto e = cc->encode_wtranscode_length(wseq, &size, *stp); e != mlibc::charcode_error::null)
+			__ensure(!"decode_wtranscode() errors are not handled");
+		return size;
+	}
 
 	if(auto e = cc->encode_wtranscode(nseq, wseq, *stp); e != mlibc::charcode_error::null) {
 		__ensure(!"encode_wtranscode() errors are not handled");
@@ -227,3 +239,25 @@ int wcswidth(const wchar_t *, size_t) {
 	__builtin_unreachable();
 }
 
+wchar_t *wcsdup(const wchar_t *s) {
+	size_t len = wcslen(s);
+	wchar_t *ret = (wchar_t *) malloc(sizeof(wchar_t) * (len + 1));
+	if(!ret)
+		return NULL;
+	wmemcpy(ret, s, len + 1);
+	return ret;
+}
+
+int wcsncasecmp(const wchar_t* s1, const wchar_t* s2, size_t n) {
+	for(size_t i = 0; i < n; i++) {
+		wint_t c1 = towlower(s1[i]);
+		wint_t c2 = towlower(s2[i]);
+		if(c1 == L'\0' && c2 == L'\0')
+			return 0;
+		if(c1 < c2)
+			return -1;
+		if(c1 > c2)
+			return 1;
+	}
+	return 0;
+}

@@ -26,6 +26,7 @@ if not no_headers
 	install_headers(
 		'include/alloca.h',
 		'include/assert.h',
+		'include/complex.h',
 		'include/ctype.h',
 		'include/errno.h',
 		'include/fenv.h',
@@ -266,5 +267,5 @@ if not headers_only
 		'musl-generic-math/truncl.c',
 		pic: true,
 		include_directories: libc_include_dirs,
-		c_args: ['-Wno-unused', '-Wno-implicit', '-Wno-parentheses'])
+		c_args: ['-Wno-unused', '-Wno-implicit', '-Wno-parentheses', '-Wno-sign-compare', '-Wno-attributes', '-Wno-unknown-pragmas'])
 endif

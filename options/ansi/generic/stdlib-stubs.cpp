@@ -20,7 +20,7 @@
 #include <mlibc/ansi-sysdeps.hpp>
 #include <mlibc/strtofp.hpp>
 
-#if __MLIBC_POSIX_OPTION
+#ifdef __MLIBC_POSIX_OPTION
 #include <pthread.h>
 #endif // __MLIBC_POSIX_OPTION
 
@@ -242,6 +242,7 @@ int atexit(void (*func)(void)) {
 	return 0;
 }
 int at_quick_exit(void (*func)(void)) {
+	(void)func;
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
@@ -256,7 +257,7 @@ void _Exit(int status) {
 }
 
 // getenv() is provided by POSIX
-void quick_exit(int status) {
+void quick_exit(int) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
@@ -274,7 +275,7 @@ int system(const char *command) {
 		return -1;
 	}
 
-#if __MLIBC_POSIX_OPTION
+#ifdef __MLIBC_POSIX_OPTION
 	pthread_testcancel();
 #endif // __MLIBC_POSIX_OPTION
 
@@ -377,6 +378,13 @@ void qsort(void *base, size_t count, size_t size,
 	}
 }
 
+void qsort_r(void *, size_t, size_t,
+		int (*compar)(const void *, const void *, void *),
+		void *) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
 int abs(int num) {
 	return num < 0 ? -num : num;
 }
@@ -395,13 +403,19 @@ div_t div(int number, int denom) {
 	r.rem = number % denom;
 	return r;
 }
+
 ldiv_t ldiv(long number, long denom) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+	ldiv_t r;
+	r.quot = number / denom;
+	r.rem = number % denom;
+	return r;
 }
+
 lldiv_t lldiv(long long number, long long denom) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+	lldiv_t r;
+	r.quot = number / denom;
+	r.rem = number % denom;
+	return r;
 }
 
 int mblen(const char *mbs, size_t mb_limit) {
@@ -419,6 +433,7 @@ int mblen(const char *mbs, size_t mb_limit) {
 		__ensure(!"decode_wtranscode() errors are not handled");
 	return nseq.it - mbs;
 }
+
 int mbtowc(wchar_t *__restrict wc, const char *__restrict mbs, size_t max_size) {
 	mlibc::infoLogger() << "mlibc: Broken mbtowc() called" << frg::endlog;
 	__ensure(max_size);
@@ -432,7 +447,8 @@ int mbtowc(wchar_t *__restrict wc, const char *__restrict mbs, size_t max_size) 
 	}
 	return 1;
 }
-int wctomb(char *mb_chr, wchar_t wc) {
+
+int wctomb(char *, wchar_t) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }

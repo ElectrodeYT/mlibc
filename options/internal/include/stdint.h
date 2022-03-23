@@ -2,6 +2,7 @@
 #define _MLIBC_STDINT_H
 
 #include <bits/types.h>
+#include <bits/wchar.h>
 
 // ----------------------------------------------------------------------------
 // Type definitions.
@@ -60,12 +61,14 @@ typedef __mlibc_uintptr uintptr_t;
 #define INT16_C(x) __MLIBC_INT16_C(x)
 #define INT32_C(x) __MLIBC_INT32_C(x)
 #define INT64_C(x) __MLIBC_INT64_C(x)
+#define INTMAX_C(x) __MLIBC_INTMAX_C(x)
 
 // Fixed-width (unsigned).
 #define UINT8_C(x)  __MLIBC_UINT8_C(x)
 #define UINT16_C(x) __MLIBC_UINT16_C(x)
 #define UINT32_C(x) __MLIBC_UINT32_C(x)
 #define UINT64_C(x) __MLIBC_UINT64_C(x)
+#define UINTMAX_C(x) __MLIBC_UINTMAX_C(x)
 
 // ----------------------------------------------------------------------------
 // Limits.
@@ -138,8 +141,6 @@ typedef __mlibc_uintptr uintptr_t;
 #define PTRDIFF_MIN    __MLIBC_PTRDIFF_MIN
 #define SIG_ATOMIC_MAX __MLIBC_SIG_ATOMIC_MAX
 #define SIG_ATOMIC_MIN __MLIBC_SIG_ATOMIC_MIN
-#define WCHAR_MAX      __MLIBC_WCHAR_MAX
-#define WCHAR_MIN      __MLIBC_WCHAR_MIN
 #define WINT_MAX       __MLIBC_WINT_MAX
 #define WINT_MIN       __MLIBC_WINT_MIN
 

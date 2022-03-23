@@ -1,12 +1,18 @@
 #ifndef _SYS_MMAN_H
 #define _SYS_MMAN_H
 
+#include <abi-bits/mode_t.h>
 #include <abi-bits/vm-flags.h>
 #include <bits/off_t.h>
 #include <bits/size_t.h>
 
+#ifdef __MLIBC_LINUX_OPTION
+#include <linux/memfd.h>
+#endif
+
 #define MAP_FAILED ((void *)(-1))
 
+#define MAP_FILE 0
 #define MS_ASYNC 0x01
 #define MS_SYNC 0x02
 #define MS_INVALIDATE 0x04
@@ -42,9 +48,16 @@ int munlockall(void);
 int posix_madvise(void *, size_t, int);
 int msync(void *, size_t, int);
 
+int shm_open(const char *, int, mode_t);
+int shm_unlink(const char *);
+
 // Linux extension:
 void *mremap(void *, size_t, size_t, int, ...);
 int remap_file_pages(void *, size_t, int, size_t, int);
+
+#ifdef __MLIBC_LINUX_OPTION
+int memfd_create(const char *, unsigned int);
+#endif
 
 #ifdef __cplusplus
 }

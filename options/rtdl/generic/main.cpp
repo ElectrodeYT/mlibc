@@ -1,5 +1,6 @@
 
 #include <elf.h>
+#include <link.h>
 
 #include <frg/manual_box.hpp>
 
@@ -112,7 +113,7 @@ extern "C" {
 	}
 }
 
-extern "C" [[gnu::alias("dl_debug_state"), gnu::visibility("default")]] void _dl_debug_state();
+extern "C" [[gnu::alias("dl_debug_state"), gnu::visibility("default")]] void _dl_debug_state() noexcept;
 
 // This symbol can be used by GDB to find the global interface structure
 [[ gnu::visibility("default") ]] DebugInterface *_dl_debug_addr = &globalDebugInterface;
@@ -411,6 +412,7 @@ void *__dlapi_resolve(void *handle, const char *string) {
 
 	if (!target) {
 		mlibc::infoLogger() << "rtdl: could not resolve \"" << string << "\"" << frg::endlog;
+		lastError = "Cannot resolve requested symbol";
 		return nullptr;
 	}
 	return reinterpret_cast<void *>(target->virtualAddress());
@@ -485,8 +487,33 @@ int __dlapi_reverse(const void *ptr, __dlapi_symbol *info) {
 }
 
 extern "C" [[ gnu::visibility("default") ]]
+int __dlapi_iterate_phdr(int (*callback)(struct dl_phdr_info *, size_t, void*), void *data) {
+	int last_return = 0;
+	for (auto object : globalScope->_objects) {
+		struct dl_phdr_info info;
+		info.dlpi_addr = object->baseAddress;
+		info.dlpi_name = object->name;
+		info.dlpi_phdr = static_cast<ElfW(Phdr)*>(object->phdrPointer);
+		info.dlpi_phnum = object->phdrCount;
+		info.dlpi_adds = rtsCounter;
+		info.dlpi_subs = 0; // TODO(geert): implement dlclose().
+		if (object->tlsModel != TlsModel::null)
+			info.dlpi_tls_modid = object->tlsIndex;
+		else
+			info.dlpi_tls_modid = 0;
+		info.dlpi_tls_data = tryAccessDtv(object);
+
+		last_return = callback(&info, sizeof(struct dl_phdr_info), data);
+	}
+
+	return last_return;
+}
+
+extern "C" [[ gnu::visibility("default") ]]
 void __dlapi_enter(uintptr_t *entry_stack) {
 #ifdef MLIBC_STATIC_BUILD
 	interpreterMain(entry_stack);
+#else
+	(void)entry_stack;
 #endif
 }

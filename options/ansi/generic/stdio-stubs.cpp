@@ -6,7 +6,9 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include <ctype.h>
-#include <unistd.h>
+#include <limits.h>
+
+#include <abi-bits/fcntl.h>
 
 #include <bits/ensure.h>
 
@@ -40,7 +42,7 @@ struct PrintfAgent {
 			if (szmod == frg::printf_size_mod::long_size) {
 				char c_buf[sizeof(wchar_t)];
 				auto c = static_cast<wchar_t>(va_arg(_vsp->args, wint_t));
-				mbstate_t shift_state = {0};
+				mbstate_t shift_state = {};
 				if (wcrtomb(c_buf, c, &shift_state) == size_t(-1))
 					return frg::format_error::agent_error;
 				_formatter->append(c_buf);
@@ -212,12 +214,12 @@ int remove(const char *filename) {
 
 	if(int e = mlibc::sys_rmdir(filename); e) {
 		if (e == ENOTDIR) {
-			if(!mlibc::sys_unlink) {
+			if(!mlibc::sys_unlinkat) {
 				MLIBC_MISSING_SYSDEP();
 				errno = ENOSYS;
 				return -1;
 			}
-			if(e = mlibc::sys_unlink(filename); e) {
+			if(e = mlibc::sys_unlinkat(AT_FDCWD, filename, 0); e) {
 				errno = e;
 				return -1;
 			}
@@ -255,21 +257,24 @@ int renameat(int olddirfd, const char *old_path, int newdirfd, const char *new_p
     }
     return 0;
 }
+
 FILE *tmpfile(void) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
-char *tmpnam(char *buffer) {
+
+char *tmpnam(char *) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
 
 // fflush() is provided by the POSIX sublibrary
 // fopen() is provided by the POSIX sublibrary
-FILE *freopen(const char *__restrict filename, const char *__restrict mode, FILE *__restrict stream) {
+FILE *freopen(const char *__restrict, const char *__restrict, FILE *__restrict) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 void setbuf(FILE *__restrict stream, char *__restrict buffer) {
 	setvbuf(stream, buffer, buffer ? _IOFBF : _IONBF, BUFSIZ);
 }
@@ -286,6 +291,7 @@ int fprintf(FILE *__restrict stream, const char *__restrict format, ...) {
 	va_end(args);
 	return result;
 }
+
 int fscanf(FILE *__restrict stream, const char *__restrict format, ...) {
 	va_list args;
 	va_start(args, format);
@@ -466,7 +472,7 @@ static int do_scanf(H &handler, const char *fmt, __gnuc_va_list args) {
             case 'd':
             case 'u':
                 base = 10;
-                /* fallthrough */
+                [[fallthrough]];
             case 'i': {
                 unsigned long long res = 0;
                 char c = handler.look_ahead();
@@ -572,7 +578,7 @@ static int do_scanf(H &handler, const char *fmt, __gnuc_va_list args) {
                         break;
                 }
                 if (typed_dest)
-                    typed_dest[count + 1] = '\0';
+                    typed_dest[count] = '\0';
                 break;
             }
             case 'c': {
@@ -623,7 +629,7 @@ static int do_scanf(H &handler, const char *fmt, __gnuc_va_list args) {
                 char *typed_dest = (char *)dest;
                 int count = 0;
                 char c = handler.look_ahead();
-                while (c && count < width) {
+                while (c && (!width || count < width)) {
                     handler.consume();
                     if (!scanset[1 + c])
                         break;
@@ -678,10 +684,11 @@ static int do_scanf(H &handler, const char *fmt, __gnuc_va_list args) {
     return match_count;
 }
 
-int scanf(const char *__restrict format, ...) {
+int scanf(const char *__restrict, ...) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 int snprintf(char *__restrict buffer, size_t max_size, const char *__restrict format, ...) {
 	va_list args;
 	va_start(args, format);
@@ -689,6 +696,7 @@ int snprintf(char *__restrict buffer, size_t max_size, const char *__restrict fo
 	va_end(args);
 	return result;
 }
+
 int sprintf(char *__restrict buffer, const char *__restrict format, ...) {
 	va_list args;
 	va_start(args, format);
@@ -696,6 +704,7 @@ int sprintf(char *__restrict buffer, const char *__restrict format, ...) {
 	va_end(args);
 	return result;
 }
+
 int sscanf(const char *__restrict buffer, const char *__restrict format, ...) {
 	va_list args;
 	va_start(args, format);
@@ -705,8 +714,11 @@ int sscanf(const char *__restrict buffer, const char *__restrict format, ...) {
 	va_end(args);
 	return result;
 }
+
 int vfprintf(FILE *__restrict stream, const char *__restrict format, __gnuc_va_list args) {
 	frg::va_struct vs;
+	frg::arg arg_list[NL_ARGMAX + 1];
+	vs.arg_list = arg_list;
 	va_copy(vs.args, args);
 	auto file = static_cast<mlibc::abstract_file *>(stream);
 	frg::unique_lock<FutexLock> lock(file->_lock);
@@ -718,6 +730,7 @@ int vfprintf(FILE *__restrict stream, const char *__restrict format, __gnuc_va_l
 
 	return p.count;
 }
+
 int vfscanf(FILE *__restrict stream, const char *__restrict format, __gnuc_va_list args) {
 	auto file = static_cast<mlibc::abstract_file *>(stream);
 	frg::unique_lock<FutexLock> lock(file->_lock);
@@ -743,20 +756,25 @@ int vfscanf(FILE *__restrict stream, const char *__restrict format, __gnuc_va_li
 
 		mlibc::abstract_file *file;
 		int num_consumed;
-	} handler = {file};
+	} handler = {file, 0};
 
 	return do_scanf(handler, format, args);
 }
+
 int vprintf(const char *__restrict format, __gnuc_va_list args){
 	return vfprintf(stdout, format, args);
 }
-int vscanf(const char *__restrict format, __gnuc_va_list args) {
+
+int vscanf(const char *__restrict, __gnuc_va_list) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 int vsnprintf(char *__restrict buffer, size_t max_size,
 		const char *__restrict format, __gnuc_va_list args) {
 	frg::va_struct vs;
+	frg::arg arg_list[NL_ARGMAX + 1];
+	vs.arg_list = arg_list;
 	va_copy(vs.args, args);
 	LimitedPrinter p{buffer, max_size ? max_size - 1 : 0};
 //	mlibc::infoLogger() << "printf(" << format << ")" << frg::endlog;
@@ -767,8 +785,11 @@ int vsnprintf(char *__restrict buffer, size_t max_size,
 		p.buffer[frg::min(max_size - 1, p.count)] = 0;
 	return p.count;
 }
+
 int vsprintf(char *__restrict buffer, const char *__restrict format, __gnuc_va_list args) {
 	frg::va_struct vs;
+	frg::arg arg_list[NL_ARGMAX + 1];
+	vs.arg_list = arg_list;
 	va_copy(vs.args, args);
 	BufferPrinter p(buffer);
 //	mlibc::infoLogger() << "printf(" << format << ")" << frg::endlog;
@@ -778,6 +799,7 @@ int vsprintf(char *__restrict buffer, const char *__restrict format, __gnuc_va_l
 	p.buffer[p.count] = 0;
 	return p.count;
 }
+
 int vsscanf(const char *__restrict buffer, const char *__restrict format, __gnuc_va_list args) {
 	struct {
 		char look_ahead() {
@@ -791,7 +813,7 @@ int vsscanf(const char *__restrict buffer, const char *__restrict format, __gnuc
 
 		const char *buffer;
 		int num_consumed;
-	} handler = {buffer};
+	} handler = {buffer, 0};
 
 	int result = do_scanf(handler, format, args);
 
@@ -868,6 +890,7 @@ int fputc_unlocked(int c, FILE *stream) {
 		return EOF;
 	return 1;
 }
+
 int fputc(int c, FILE *stream) {
 	auto file = static_cast<mlibc::abstract_file *>(stream);
 	frg::unique_lock<FutexLock> lock(file->_lock);
@@ -879,6 +902,7 @@ int fputs_unlocked(const char *__restrict string, FILE *__restrict stream) {
 		return EOF;
 	return 1;
 }
+
 int fputs(const char *__restrict string, FILE *__restrict stream) {
 	auto file = static_cast<mlibc::abstract_file *>(stream);
 	frg::unique_lock<FutexLock> lock(file->_lock);
@@ -911,6 +935,7 @@ int putc_unlocked(int c, FILE *stream) {
 		return EOF;
 	return c;
 }
+
 int putc(int c, FILE *stream) {
 	auto file = static_cast<mlibc::abstract_file *>(stream);
 	frg::unique_lock<FutexLock> lock(file->_lock);
@@ -920,6 +945,7 @@ int putc(int c, FILE *stream) {
 int putchar_unlocked(int c) {
 	return putc_unlocked(c, stdout);
 }
+
 int putchar(int c) {
 	auto file = static_cast<mlibc::abstract_file *>(stdout);
 	frg::unique_lock<FutexLock> lock(file->_lock);
@@ -975,12 +1001,13 @@ size_t fwrite(const void *buffer, size_t size , size_t count, FILE *file_base) {
 	return fwrite_unlocked(buffer, size, count, file_base);
 }
 
-int fgetpos(FILE *__restrict stream, fpos_t *__restrict position) {
+int fgetpos(FILE *__restrict, fpos_t *__restrict) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 // fseek() is provided by the POSIX sublibrary
-int fsetpos(FILE *stream, const fpos_t *position) {
+int fsetpos(FILE *, const fpos_t *) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
@@ -1020,7 +1047,9 @@ ssize_t getdelim(char **line, size_t *n, int delim, FILE *stream) {
 	}
 
 	char *buffer = *line;
-	size_t capacity = *n, nwritten = 0;
+	/* set the starting capacity to 512 if buffer = NULL */
+	size_t capacity = (!buffer) ? 512 : *n;
+	size_t nwritten = 0;
 
 	auto file = static_cast<mlibc::abstract_file *>(stream);
 	frg::unique_lock<FutexLock> lock(file->_lock);
@@ -1077,6 +1106,8 @@ int asprintf(char **out, const char *format, ...) {
 
 int vasprintf(char **out, const char *format, __gnuc_va_list args) {
 	frg::va_struct vs;
+	frg::arg arg_list[NL_ARGMAX + 1];
+	vs.arg_list = arg_list;
 	va_copy(vs.args, args);
 	ResizePrinter p;
 //	mlibc::infoLogger() << "printf(" << format << ")" << frg::endlog;
@@ -1091,16 +1122,17 @@ int vasprintf(char **out, const char *format, __gnuc_va_list args) {
 
 // Linux unlocked I/O extensions.
 
-void flockfile(FILE *) {
-	mlibc::infoLogger() << "mlibc: File locking (flockfile) is a no-op" << frg::endlog;
+void flockfile(FILE *file_base) {
+	static_cast<mlibc::abstract_file *>(file_base)->_lock.lock();
 }
 
-void funlockfile(FILE *) {
-	mlibc::infoLogger() << "mlibc: File locking (funlockfile) is a no-op" << frg::endlog;
+void funlockfile(FILE *file_base) {
+	static_cast<mlibc::abstract_file *>(file_base)->_lock.unlock();
 }
 
 int ftrylockfile(FILE *) {
 	mlibc::infoLogger() << "mlibc: File locking (ftrylockfile) is a no-op" << frg::endlog;
+	return 0;
 }
 
 void clearerr_unlocked(FILE *file_base) {

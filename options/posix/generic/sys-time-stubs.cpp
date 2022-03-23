@@ -21,31 +21,46 @@ int gettimeofday(struct timeval *__restrict result, void *__restrict unused) {
 	return 0;
 }
 
-void timeradd(struct timeval *a, struct timeval *b, struct timeval *res) {
+void timeradd(struct timeval *, struct timeval *, struct timeval *) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
 
-void timersub(struct timeval *a, struct timeval *b, struct timeval *res) {
+void timersub(struct timeval *, struct timeval *, struct timeval *) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
 
-void timerclear(struct timeval *tvp) {
+void timerclear(struct timeval *) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
 
-int timerisset(struct timeval *tvp) {
+int timerisset(struct timeval *) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
 
-int getitimer(int, struct itimerval *) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+int getitimer(int which, struct itimerval *curr_value) {
+	if(!mlibc::sys_getitimer) {
+		MLIBC_MISSING_SYSDEP();
+		errno = ENOSYS;
+		return -1;
+	}
+	if(int e = mlibc::sys_getitimer(which, curr_value); e) {
+		errno = e;
+		return -1;
+	}
 }
-int setitimer(int, const struct itimerval *, struct itimerval *) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+
+int setitimer(int which, const struct itimerval *new_value, struct itimerval *old_value) {
+	if(!mlibc::sys_setitimer) {
+		MLIBC_MISSING_SYSDEP();
+		errno = ENOSYS;
+		return -1;
+	}
+	if(int e = mlibc::sys_setitimer(which, new_value, old_value); e) {
+		errno = e;
+		return -1;
+	}
 }

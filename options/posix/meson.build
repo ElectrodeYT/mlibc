@@ -50,7 +50,6 @@ libc_sources += files(
 	'generic/utime-stubs.cpp',
 	'generic/ucontext-stubs.cpp',
 	'generic/semaphore-stubs.cpp',
-	'generic/crypt-stubs.cpp',
 	'generic/search.cpp',
 	'generic/sys-msg.cpp',
 	'generic/sys-sem.cpp',
@@ -74,6 +73,7 @@ if not no_headers
 		'include/nl_types.h',
 		'include/pthread.h',
 		'include/pwd.h',
+		'include/poll.h',
 		'include/regex.h',
 		'include/sched.h',
 		'include/search.h',
@@ -85,7 +85,6 @@ if not no_headers
 		'include/utime.h',
 		'include/ucontext.h',
 		'include/semaphore.h',
-		'include/crypt.h',
 	)
 	install_headers(
 		'include/arpa/inet.h',
@@ -107,6 +106,7 @@ if not no_headers
 		'include/sys/mman.h',
 		'include/sys/msg.h',
 		'include/sys/param.h',
+		'include/sys/poll.h',
 		'include/sys/resource.h',
 		'include/sys/select.h',
 		'include/sys/sem.h',

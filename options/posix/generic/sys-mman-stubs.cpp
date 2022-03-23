@@ -1,5 +1,8 @@
 
 #include <errno.h>
+#include <limits.h>
+#include <pthread.h>
+#include <unistd.h>
 #include <sys/mman.h>
 #include <bits/ensure.h>
 
@@ -89,4 +92,60 @@ int munmap(void *pointer, size_t size) {
 	return 0;
 }
 
+// The implementation of shm_open and shm_unlink is taken from musl.
+namespace {
+	char *shm_mapname(const char *name, char *buf) {
+		char *p;
+		while(*name == '/')
+			name++;
+		if(*(p = strchrnul(name, '/')) || p == name ||
+			(p - name <= 2 && name[0] == '.' && p[-1] == '.')) {
+			errno = EINVAL;
+			return 0;
+		}
+		if(p - name > NAME_MAX) {
+			errno = ENAMETOOLONG;
+			return 0;
+		}
+		memcpy(buf, "/dev/shm/", 9);
+		memcpy(buf + 9, name, p - name + 1);
+		return buf;
+	}
+}
 
+int shm_open(const char *name, int flags, mode_t mode) {
+	int cs;
+	char buf[NAME_MAX + 10];
+	if(!(name = shm_mapname(name, buf)))
+		return -1;
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
+	int fd = open(name, flags | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, mode);
+	pthread_setcancelstate(cs, 0);
+	return fd;
+}
+
+int shm_unlink(const char *name) {
+	char buf[NAME_MAX + 10];
+	if(!(name = shm_mapname(name, buf)))
+		return -1;
+	return unlink(name);
+}
+
+#ifdef __MLIBC_LINUX_OPTION
+int memfd_create(const char *name, unsigned int flags) {
+	if(!mlibc::sys_memfd_create) {
+		MLIBC_MISSING_SYSDEP();
+		errno = ENOSYS;
+		return -1;
+	}
+
+	int ret = -1;
+
+	if(int e = mlibc::sys_memfd_create(name, flags, &ret)) {
+		errno = e;
+		return -1;
+	}
+
+	return ret;
+}
+#endif

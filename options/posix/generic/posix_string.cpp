@@ -30,7 +30,6 @@ char *strndup(const char *string, size_t max_size) {
 }
 
 size_t strnlen(const char *s, size_t n) {
-	__ensure(n >= 0);
 	size_t len = 0;
 	while(len < n && s[len])
 		++len;
@@ -70,9 +69,8 @@ char *strsignal(int sig) {
 	CASE_FOR(SIGSEGV)
 	CASE_FOR(SIGTERM)
 	CASE_FOR(SIGPROF)
-// TODO: Uncomment these after fixing the ABI.
-//	CASE_FOR(SIGIO)
-//	CASE_FOR(SIGPWR)
+	CASE_FOR(SIGIO)
+	CASE_FOR(SIGPWR)
 	CASE_FOR(SIGALRM)
 	CASE_FOR(SIGBUS)
 	CASE_FOR(SIGCHLD)
@@ -111,4 +109,19 @@ char *strcasestr(const char *s, const char *pattern) {
 		++p;
 	}
 	return nullptr;
+}
+
+char *strdupa(const char *) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+char *strndupa(const char *, size_t) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+void *memrchr(const void *, int, size_t) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
 }

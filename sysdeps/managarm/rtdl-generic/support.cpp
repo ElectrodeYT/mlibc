@@ -45,6 +45,7 @@ struct Queue {
 	Queue()
 	: _handle{kHelNullHandle}, _lastProgress(0) {
 		HelQueueParameters params {
+			.flags = 0,
 			.ringShift = 0,
 			.numChunks = 1,
 			.chunkSize = 4096
@@ -182,7 +183,7 @@ int sys_tcb_set(void *pointer) {
 	return 0;
 }
 
-int sys_open(const char *path, int flags, int *fd) {
+int sys_open(const char *path, int, int *fd) {
 	cacheFileTable();
 	HelAction actions[4];
 
@@ -443,8 +444,13 @@ int sys_futex_tid() {
 	return resp.pid();
 }
 
-int sys_futex_wait(int *pointer, int expected) {
+int sys_futex_wait(int *pointer, int expected, const struct timespec *time) {
 	// This implementation is inherently signal-safe.
+	if(time) {
+		if(helFutexWait(pointer, expected, time->tv_nsec + time->tv_sec * 1000000000))
+			return -1;
+		return 0;
+	}
 	if(helFutexWait(pointer, expected, -1))
 		return -1;
 	return 0;

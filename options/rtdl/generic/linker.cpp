@@ -170,15 +170,15 @@ SharedObject *ObjectRepository::requestObjectWithName(frg::string_view name,
 		if (path.sub_string(0, 7) == "$ORIGIN") {
 			frg::string_view dirname = origin->path;
 			auto lastsl = dirname.find_last('/');
-			if (lastsl != -1) {
+			if (lastsl != (uint64_t)-1) {
 				dirname = dirname.sub_string(0, lastsl);
 			} else {
 				dirname = ".";
 			}
-			sPath = { getAllocator(), dirname };
+			sPath = frg::string<MemoryAllocator>{ getAllocator(), dirname };
 			sPath += path.sub_string(7, path.size() - 7);
 		} else {
-			sPath = { getAllocator(), path };
+			sPath = frg::string<MemoryAllocator>{ getAllocator(), path };
 		}
 		if (sPath[sPath.size() - 1] != '/') {
 			sPath += '/';
@@ -310,6 +310,7 @@ void ObjectRepository::_fetchFromPhdrs(SharedObject *object, void *phdr_pointer,
 			object->tlsAlignment = phdr->p_align;
 			object->tlsImageSize = phdr->p_filesz;
 			tls_offset = phdr->p_vaddr;
+			break;
 		case PT_INTERP:
 			object->interpreterPath = frg::string<MemoryAllocator>{
 				(char*)(object->baseAddress + phdr->p_vaddr),
@@ -535,7 +536,7 @@ void ObjectRepository::_parseDynamic(SharedObject *object) {
 			break;
 		case DT_RPATH:
 			mlibc::infoLogger() << "\e[31mrtdl: RUNPATH not preferred over RPATH properly\e[39m" << frg::endlog;
-			// fall through
+			[[fallthrough]];
 		case DT_RUNPATH:
 			runpath_offset = dynamic->d_un.d_val;
 			break;
@@ -552,6 +553,7 @@ void ObjectRepository::_parseDynamic(SharedObject *object) {
 			break;
 		case DT_DEBUG:
 			dynamic->d_un.d_val = reinterpret_cast<Elf64_Xword>(&globalDebugInterface);
+			break;
 		// ignore unimportant tags
 		case DT_SONAME: case DT_NEEDED: // we handle this later
 		case DT_FINI: case DT_FINI_ARRAY: case DT_FINI_ARRAYSZ:
@@ -730,6 +732,7 @@ Tcb *allocateTcb() {
 	tcb_ptr->stackCanary = __stack_chk_guard;
 	tcb_ptr->cancelBits = tcbCancelEnableBit;
 	tcb_ptr->didExit = 0;
+	tcb_ptr->isJoinable = 1;
 	tcb_ptr->returnValue = nullptr;
 	tcb_ptr->dtvSize = runtimeTlsMap->indices.size();
 	tcb_ptr->dtvPointers = frg::construct_n<void *>(getAllocator(), runtimeTlsMap->indices.size());
@@ -768,6 +771,17 @@ void *accessDtv(SharedObject *object) {
 		memcpy(buffer, object->tlsImagePtr, object->tlsImageSize);
 		tcb_ptr->dtvPointers[object->tlsIndex] = buffer;
 	}
+
+	return tcb_ptr->dtvPointers[object->tlsIndex];
+}
+
+void *tryAccessDtv(SharedObject *object) {
+	Tcb *tcb_ptr = getCurrentTcb();
+
+	if (object->tlsIndex >= tcb_ptr->dtvSize)
+		return nullptr;
+	if (!tcb_ptr->dtvPointers[object->tlsIndex])
+		return nullptr;
 
 	return tcb_ptr->dtvPointers[object->tlsIndex];
 }

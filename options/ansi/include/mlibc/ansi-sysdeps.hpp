@@ -33,12 +33,13 @@ int sys_seek(int fd, off_t offset, int whence, off_t *new_offset);
 int sys_close(int fd);
 
 int sys_clock_get(int clock, time_t *secs, long *nanos);
+[[gnu::weak]] int sys_clock_getres(int clock, time_t *secs, long *nanos);
 [[gnu::weak]] int sys_sleep(time_t *secs, long *nanos);
 // In contrast to the isatty() library function, the sysdep function uses return value
 // zero (and not one) to indicate that the file is a terminal.
 [[gnu::weak]] int sys_isatty(int fd);
 [[gnu::weak]] int sys_rmdir(const char *path);
-[[gnu::weak]] int sys_unlink(const char *path);
+[[gnu::weak]] int sys_unlinkat(int dirfd, const char *path, int flags);
 [[gnu::weak]] int sys_rename(const char *path, const char *new_path);
 [[gnu::weak]] int sys_renameat(int olddirfd, const char *old_path, int newdirfd, const char *new_path);
 

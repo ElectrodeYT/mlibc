@@ -1,7 +1,7 @@
 #ifndef _STRING_H
 #define _STRING_H
 
-#include <bits/feature.h>
+#include <mlibc-config.h>
 #include <bits/null.h>
 #include <bits/size_t.h>
 
@@ -57,12 +57,15 @@ char *stpcpy(char *__restrict, const char *__restrict);
 
 // GNU extensions.
 int strverscmp(const char *l0, const char *r0);
+int ffsl(long i);
+int ffsll(long long i);
+void *memmem(const void *, size_t, const void *, size_t);
 
 #ifdef __cplusplus
 }
 #endif
 
-#if __MLIBC_POSIX_OPTION
+#ifdef __MLIBC_POSIX_OPTION
 #	include <bits/posix/posix_string.h>
 #endif
 

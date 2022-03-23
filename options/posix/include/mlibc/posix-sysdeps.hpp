@@ -20,6 +20,8 @@
 #include <sys/resource.h>
 #include <sys/select.h>
 #include <sys/statvfs.h>
+#include <sys/statfs.h>
+#include <sys/time.h>
 #include <termios.h>
 #include <time.h>
 #include <ucontext.h>
@@ -29,7 +31,7 @@ namespace [[gnu::visibility("hidden")]] mlibc {
 void sys_libc_log(const char *message);
 [[noreturn]] void sys_libc_panic();
 
-int sys_futex_wait(int *pointer, int expected);
+int sys_futex_wait(int *pointer, int expected, const struct timespec *time);
 int sys_futex_wake(int *pointer);
 
 [[noreturn]] void sys_exit(int status);
@@ -66,7 +68,6 @@ int sys_close(int fd);
 [[gnu::weak]] int sys_rmdir(const char *path);
 [[gnu::weak]] int sys_ftruncate(int fd, size_t size);
 [[gnu::weak]] int sys_fallocate(int fd, off_t offset, size_t size);
-[[gnu::weak]] int sys_unlink(const char *path);
 [[gnu::weak]] int sys_unlinkat(int fd, const char *path, int flags);
 [[gnu::weak]] int sys_openat(int dirfd, const char *path, int flags, int *fd);
 [[gnu::weak]] int sys_socket(int family, int type, int protocol, int *fd);
@@ -86,6 +87,7 @@ int sys_close(int fd);
 [[gnu::weak]] int sys_seteuid(uid_t euid);
 [[gnu::weak]] int sys_setgid(gid_t gid);
 [[gnu::weak]] int sys_setegid(gid_t egid);
+[[gnu::weak]] int sys_getgroups(size_t size, const gid_t *list, int *ret);
 [[gnu::weak]] void sys_yield();
 [[gnu::weak]] int sys_sleep(time_t *secs, long *nanos);
 [[gnu::weak]] int sys_fork(pid_t *child);
@@ -153,12 +155,23 @@ int sys_vm_unmap(void *pointer, size_t size);
 [[gnu::weak]] int sys_peername(int fd, struct sockaddr *addr_ptr, socklen_t max_addr_length,
 	socklen_t *actual_length);
 [[gnu::weak]] int sys_gethostname(char *buffer, size_t bufsize);
+[[gnu::weak]] int sys_sethostname(const char *buffer, size_t bufsize);
 [[gnu::weak]] int sys_mkfifoat(int dirfd, const char *path, int mode);
 [[gnu::weak]] int sys_getentropy(void *buffer, size_t length);
 [[gnu::weak]] int sys_mknodat(int dirfd, const char *path, int mode, int dev);
 
 [[gnu::weak]] int sys_before_cancellable_syscall(ucontext_t *uctx);
 [[gnu::weak]] int sys_tgkill(int tgid, int tid, int sig);
+
+[[gnu::weak]] int sys_fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags);
+[[gnu::weak]] int sys_sigaltstack(const stack_t *ss, stack_t *oss);
+[[gnu::weak]] int sys_sigsuspend(const sigset_t *set);
+[[gnu::weak]] int sys_setgroups(size_t size, const gid_t *list);
+[[gnu::weak]] int sys_statfs(const char *path, struct statfs *buf);
+[[gnu::weak]] int sys_memfd_create(const char *name, int flags, int *fd);
+
+[[gnu::weak]] int sys_getitimer(int which, struct itimerval *curr_value);
+[[gnu::weak]] int sys_setitimer(int which, const struct itimerval *new_value, struct itimerval *old_value);
 
 } //namespace mlibc
 

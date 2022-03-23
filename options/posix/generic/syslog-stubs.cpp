@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <time.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <bits/ensure.h>
@@ -59,15 +60,22 @@ void openlog(const char *ident, int options, int facility) {
 		__openlog();
 }
 
-int setlogmask(int) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+int setlogmask(int mask) {
+	int old_mask = log_mask;
+
+	log_mask = mask;
+
+	return old_mask;
 }
 
 static void _vsyslog(int priority, const char *message, va_list ap) {
 	auto is_lost_conn = [] (int e) {
 		return e == ECONNREFUSED || e == ECONNRESET || e == ENOTCONN || e == EPIPE;
 	};
+
+	if(!(priority & log_mask)) {
+		return;
+	}
 
 	char timebuf[16];
 	time_t now;
@@ -101,7 +109,7 @@ static void _vsyslog(int priority, const char *message, va_list ap) {
 	errno = errno_save;
 	l2 = vsnprintf(buf + l, sizeof buf - l, message, ap);
 	if(l2 >= 0) {
-		if(l2 >= sizeof buf - l)
+		if(l2 >= (long int)(sizeof buf - l))
 			l = sizeof buf - 1;
 		else
 			l += l2;
@@ -135,8 +143,8 @@ void vsyslog(int priority, const char *message, va_list ap) {
 		mlibc::infoLogger() << "\e[31mmlibc: syslog: log_mask or priority out of range, not printing anything\e[39m" << frg::endlog;
 		return;
 	}
-	//pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
 	frg::unique_lock<FutexLock> lock(__syslog_lock);
 	_vsyslog(priority, message, ap);
-	//pthread_setcancelstate(cs, 0);
+	pthread_setcancelstate(cs, 0);
 }

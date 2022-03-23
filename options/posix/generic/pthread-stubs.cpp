@@ -8,7 +8,7 @@
 
 #include <bits/ensure.h>
 #include <frg/allocation.hpp>
-#include <frg/hash_map.hpp>
+#include <frg/array.hpp>
 #include <mlibc/allocator.hpp>
 #include <mlibc/debug.hpp>
 #include <mlibc/posix-sysdeps.hpp>
@@ -69,18 +69,18 @@ static constexpr unsigned int rc_waiters_bit = static_cast<uint32_t>(1) << 31;
 
 // pthread_attr functions.
 int pthread_attr_init(pthread_attr_t *) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+	return 0;
 }
+
 int pthread_attr_destroy(pthread_attr_t *) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+	return 0;
 }
 
 int pthread_attr_getdetachstate(const pthread_attr_t *, int *) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 int pthread_attr_setdetachstate(pthread_attr_t *, int) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
@@ -90,24 +90,58 @@ int pthread_attr_getstacksize(const pthread_attr_t *__restrict, size_t *__restri
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 int pthread_attr_setstacksize(pthread_attr_t *, size_t) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+	mlibc::infoLogger() << "mlibc: pthread_attr_setstacksize() is not implemented correctly" << frg::endlog;
+	return 0;
 }
 
 int pthread_attr_getguardsize(const pthread_attr_t *__restrict, size_t *__restrict) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 int pthread_attr_setguardsize(pthread_attr_t *, size_t) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 int pthread_attr_getscope(const pthread_attr_t *, int) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 int pthread_attr_setscope(pthread_attr_t *, int) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_attr_getschedpolicy(const pthread_attr_t *__restrict, int *__restrict) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_attr_setschedpolicy(pthread_attr_t *, int) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_attr_getschedparam(const pthread_attr_t *__restrict, struct sched_param *__restrict) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_attr_setschedparam(pthread_attr_t *__restrict, const struct sched_param *__restrict) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_attr_getinheritsched(const pthread_attr_t *__restrict, int *__restrict) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_attr_setinheritsched(pthread_attr_t *, int) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
@@ -138,12 +172,65 @@ int pthread_equal(pthread_t t1, pthread_t t2) {
 	return 0;
 }
 
+namespace {
+	struct key_global_info {
+		bool in_use;
+
+		void (*dtor)(void *);
+		uint64_t generation;
+	};
+
+	struct key_local_info {
+		void *value;
+		uint64_t generation;
+	};
+
+	constinit frg::array<
+		key_global_info,
+		PTHREAD_KEYS_MAX
+	> key_globals_{};
+
+	thread_local constinit frg::array<
+		key_local_info,
+		PTHREAD_KEYS_MAX
+	> key_locals_{};
+
+	FutexLock key_mutex_;
+}
+
 int pthread_exit(void *ret_val) {
-	auto self = static_cast<Tcb *>(mlibc::get_current_tcb());
+	auto self = mlibc::get_current_tcb();
+
+	if (__atomic_load_n(&self->cancelBits, __ATOMIC_RELAXED) & tcbExitingBit)
+		return 0; // We are already exiting
+
+	__atomic_fetch_or(&self->cancelBits, tcbExitingBit, __ATOMIC_RELAXED);
+
+	auto hand = self->cleanupEnd;
+	while (hand) {
+		auto old = hand;
+		hand->func(hand->arg);
+		hand = hand->prev;
+		frg::destruct(getAllocator(), old);
+	}
+
+	for (size_t j = 0; j < PTHREAD_DESTRUCTOR_ITERATIONS; j++) {
+		for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++) {
+			// FIXME: We need to lock here since we're accessing key_globals_, but
+			// the dtor may call a function that also acquires the lock, resulting
+			// in a deadlock.
+			if (auto v = pthread_getspecific(i); v && key_globals_[i].dtor) {
+				key_globals_[i].dtor(v);
+				key_locals_[i].value = nullptr;
+			}
+		}
+	}
 
 	self->returnValue = ret_val;
 	__atomic_store_n(&self->didExit, 1, __ATOMIC_RELEASE);
 	mlibc::sys_futex_wake(&self->didExit);
+
+	// TODO: clean up thread resources when we are detached.
 
 	// TODO: do exit(0) when we're the only thread instead
 	mlibc::sys_thread_exit();
@@ -153,8 +240,11 @@ int pthread_exit(void *ret_val) {
 int pthread_join(pthread_t thread, void **ret) {
 	auto tcb = reinterpret_cast<Tcb *>(thread);
 
+	if (!__atomic_load_n(&tcb->isJoinable, __ATOMIC_ACQUIRE))
+		return EINVAL;
+
 	while (!__atomic_load_n(&tcb->didExit, __ATOMIC_ACQUIRE)) {
-		mlibc::sys_futex_wait(&tcb->didExit, 0);
+		mlibc::sys_futex_wait(&tcb->didExit, 0, nullptr);
 	}
 
 	if (ret)
@@ -165,25 +255,84 @@ int pthread_join(pthread_t thread, void **ret) {
 	return 0;
 }
 
-int pthread_detach(pthread_t) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+int pthread_detach(pthread_t thread) {
+	auto tcb = reinterpret_cast<Tcb*>(thread);
+	if (!__atomic_load_n(&tcb->isJoinable, __ATOMIC_RELAXED))
+		return EINVAL;
+
+	int expected = 1;
+	if(!__atomic_compare_exchange_n(&tcb->isJoinable, &expected, 0, false, __ATOMIC_RELEASE,
+				__ATOMIC_RELAXED))
+		return EINVAL;
+
+	return 0;
 }
 
-int pthread_cleanup_push(void (*) (void *), void *) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+void pthread_cleanup_push(void (*func) (void *), void *arg) {
+	auto self = mlibc::get_current_tcb();
+
+	auto hand = frg::construct<Tcb::CleanupHandler>(getAllocator());
+	hand->func = func;
+	hand->arg = arg;
+	hand->next = nullptr;
+	hand->prev = self->cleanupEnd;
+
+	if (self->cleanupEnd)
+		self->cleanupEnd->next = hand;
+
+	self->cleanupEnd = hand;
+
+	if (!self->cleanupBegin)
+		self->cleanupBegin = self->cleanupEnd;
 }
-int pthread_cleanup_pop(int) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+
+void pthread_cleanup_pop(int execute) {
+	auto self = mlibc::get_current_tcb();
+
+	auto hand = self->cleanupEnd;
+
+	if (self->cleanupEnd)
+		self->cleanupEnd = self->cleanupEnd->prev;
+	if (self->cleanupEnd)
+		self->cleanupEnd->next = nullptr;
+
+	if (execute)
+		hand->func(hand->arg);
+
+	frg::destruct(getAllocator(), hand);
 }
 
 int pthread_setname_np(pthread_t, const char *) {
+	mlibc::infoLogger() << "mlibc: pthread_setname_np is a stub" << frg::endlog;
+	return 0;
+}
+
+int pthread_getname_np(pthread_t, char *, size_t) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
-int pthread_getname_np(pthread_t, char *, size_t) {
+
+int pthread_attr_setstack(pthread_attr_t *, void *, size_t) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_attr_getstack(const pthread_attr_t *, void **, size_t *) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_getattr_np(pthread_t, pthread_attr_t *) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_setschedparam(pthread_t, int, const struct sched_param *) {
+	__ensure(!"Not implemented");
+	__builtin_unreachable();
+}
+
+int pthread_getschedparam(pthread_t, int *, struct sched_param *) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
@@ -242,9 +391,8 @@ namespace {
 						new_value, true,__ATOMIC_RELAXED, __ATOMIC_RELAXED)) {
 				tcb->returnValue = PTHREAD_CANCELED;
 
-				// Check if asynchronous cancellation is still enabled.
-				if (tcb->cancelBits & tcbCancelAsyncBit)
-					__mlibc_do_cancel();
+				// Perform cancellation
+				__mlibc_do_cancel();
 
 				break;
 			}
@@ -356,7 +504,7 @@ int pthread_setcancelstate(int state, int *oldstate) {
 void pthread_testcancel(void) {
 	auto self = reinterpret_cast<Tcb *>(mlibc::get_current_tcb());
 	int value = self->cancelBits;
-	if (value & (tcbCancelEnableBit | tcbCancelTriggerBit)) {
+	if ((value & tcbCancelEnableBit) && (value & tcbCancelTriggerBit)) {
 		__mlibc_do_cancel();
 		__builtin_unreachable();
 	}
@@ -378,7 +526,7 @@ int pthread_cancel(pthread_t thread) {
 		int current_value = old_value;
 		if (__atomic_compare_exchange_n(&tcb->cancelBits, &current_value,
 					new_value, true, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {
-			if (mlibc::tcb_async_cancel(new_value)) {
+			if (mlibc::tcb_cancel_enabled(new_value)) {
 				pid_t pid = getpid();
 				if (!mlibc::sys_tgkill) {
 					MLIBC_MISSING_SYSDEP();
@@ -397,73 +545,99 @@ int pthread_cancel(pthread_t thread) {
 	return 0;
 }
 
-int pthread_atfork(void (*) (void), void (*) (void), void (*) (void)) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+int pthread_atfork(void (*prepare) (void), void (*parent) (void), void (*child) (void)) {
+	auto self = mlibc::get_current_tcb();
+
+	auto hand = frg::construct<Tcb::AtforkHandler>(getAllocator());
+	if (!hand)
+		return -1;
+
+	hand->prepare = prepare;
+	hand->parent = parent;
+	hand->child = child;
+	hand->next = nullptr;
+	hand->prev = self->atforkEnd;
+
+	if (self->atforkEnd)
+		self->atforkEnd->next = hand;
+
+	self->atforkEnd = hand;
+
+	if (!self->atforkBegin)
+		self->atforkBegin = self->atforkEnd;
+
+	return 0;
 }
 
 // ----------------------------------------------------------------------------
 // pthread_key functions.
 // ----------------------------------------------------------------------------
 
-struct __mlibc_key_data {
-	__mlibc_key_data()
-	: mutex(PTHREAD_MUTEX_INITIALIZER),
-			values{frg::hash<int>{}, getAllocator()} { }
-
-	pthread_mutex_t mutex;
-
-	// TODO: this should be unsigned int.
-	frg::hash_map<int, void *, frg::hash<int>, MemoryAllocator> values;
-};
-
-int pthread_key_create(pthread_key_t *out_key, void (*destructor) (void *)) {
+int pthread_key_create(pthread_key_t *out, void (*destructor)(void *)) {
 	SCOPE_TRACE();
-	// TODO: Invoke the destructor on thread exit.
-	*out_key = frg::construct<__mlibc_key_data>(getAllocator());
+
+	auto g = frg::guard(&key_mutex_);
+
+	pthread_key_t key = PTHREAD_KEYS_MAX;
+	for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++) {
+		if (!key_globals_[i].in_use) {
+			key = i;
+			break;
+		}
+	}
+
+	if (key == PTHREAD_KEYS_MAX)
+		return EAGAIN;
+
+	key_globals_[key].in_use = true;
+	key_globals_[key].dtor = destructor;
+
+	*out = key;
+
 	return 0;
 }
 
 int pthread_key_delete(pthread_key_t key) {
 	SCOPE_TRACE();
-	frg::destruct(getAllocator(), key);
+
+	auto g = frg::guard(&key_mutex_);
+
+	if (key >= PTHREAD_KEYS_MAX || !key_globals_[key].in_use)
+		return EINVAL;
+
+	key_globals_[key].in_use = false;
+	key_globals_[key].dtor = nullptr;
+	key_globals_[key].generation++;
+
 	return 0;
 }
 
 void *pthread_getspecific(pthread_key_t key) {
 	SCOPE_TRACE();
 
-	if(pthread_mutex_lock(&key->mutex))
-		__ensure("Could not lock mutex");
+	auto g = frg::guard(&key_mutex_);
 
-	// TODO: fix the key type of the hash_map.
-	void *value = nullptr;
-	auto it = key->values.get(static_cast<int>(this_tid()));
-	if(it)
-		value = *it;
+	if (key >= PTHREAD_KEYS_MAX || !key_globals_[key].in_use)
+		return nullptr;
 
-	if(pthread_mutex_unlock(&key->mutex))
-		__ensure("Could not unlock mutex");
+	if (key_globals_[key].generation > key_locals_[key].generation) {
+		key_locals_[key].value = nullptr;
+		key_locals_[key].generation = key_globals_[key].generation;
+	}
 
-	return value;
+	return key_locals_[key].value;
 }
 
 int pthread_setspecific(pthread_key_t key, const void *value) {
 	SCOPE_TRACE();
 
-	if(pthread_mutex_lock(&key->mutex))
-		__ensure("Could not lock mutex");
+	auto g = frg::guard(&key_mutex_);
 
-	// TODO: fix the key type of the hash_map.
-	auto it = key->values.get(static_cast<int>(this_tid()));
-	if(it) {
-		*it = const_cast<void *>(value);
-	}else{
-		key->values.insert(this_tid(), const_cast<void *>(value));
-	}
+	if (key >= PTHREAD_KEYS_MAX || !key_globals_[key].in_use)
+		return EINVAL;
 
-	if(pthread_mutex_unlock(&key->mutex))
-		__ensure("Could not unlock mutex");
+	key_locals_[key].value = const_cast<void *>(value);
+	key_locals_[key].generation = key_globals_[key].generation;
 
 	return 0;
 }
@@ -498,7 +672,7 @@ int pthread_once(pthread_once_t *once, void (*function) (void)) {
 		}else{
 			// a different thread is currently running the initializer.
 			__ensure(expected == onceLocked);
-			if(int e = mlibc::sys_futex_wait((int *)&once->__mlibc_done, onceLocked); e)
+			if(int e = mlibc::sys_futex_wait((int *)&once->__mlibc_done, onceLocked, nullptr); e)
 				__ensure(!"sys_futex_wait() failed");
 			expected =  __atomic_load_n(&once->__mlibc_done, __ATOMIC_ACQUIRE);
 		}
@@ -616,7 +790,7 @@ int pthread_mutex_lock(pthread_mutex_t *mutex) {
 
 			// Wait on the futex if the waiters flag is set.
 			if(expected & mutex_waiters_bit) {
-				if(int e = mlibc::sys_futex_wait((int *)&mutex->__mlibc_state, expected); e)
+				if(int e = mlibc::sys_futex_wait((int *)&mutex->__mlibc_state, expected, nullptr); e)
 					__ensure(!"sys_futex_wait() failed");
 
 				// Opportunistically try to take the lock after we wake up.
@@ -751,21 +925,20 @@ int pthread_cond_destroy(pthread_cond_t *) {
 }
 
 int pthread_cond_wait(pthread_cond_t *__restrict cond, pthread_mutex_t *__restrict mutex) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
-/*
-	auto seq = __atomic_load_n(&cond->__mlibc_seq, __ATOMIC_RELAXED);
+	return pthread_cond_timedwait(cond, mutex, nullptr);
+}
+
+int pthread_cond_timedwait(pthread_cond_t *__restrict cond, pthread_mutex_t *__restrict mutex,
+		const struct timespec *__restrict abstime) {
+	auto seq = __atomic_load_n(&cond->__mlibc_seq, __ATOMIC_ACQUIRE);
 	// TODO: do proper error handling here.
 	if(pthread_mutex_unlock(mutex))
 		__ensure(!"Failed to unlock the mutex");
-	if(mlibc::sys_futex_wait(&cond->__mlibc_seq, seq))
+	if(mlibc::sys_futex_wait(&cond->__mlibc_seq, seq, abstime))
 		__ensure(!"sys_futex_wait() failed");
-	return 0;*/
-}
-int pthread_cond_timedwait(pthread_cond_t *__restrict, pthread_mutex_t *__restrict,
-		const struct timespec *__restrict) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+	if(pthread_mutex_lock(mutex))
+		__ensure(!"Failed to lock the mutex");
+	return 0;
 }
 
 int pthread_cond_signal(pthread_cond_t *cond) {
@@ -777,7 +950,7 @@ int pthread_cond_signal(pthread_cond_t *cond) {
 int pthread_cond_broadcast(pthread_cond_t *cond) {
 	SCOPE_TRACE();
 
-	__atomic_fetch_add(&cond->__mlibc_seq, 1, __ATOMIC_RELAXED);
+	__atomic_fetch_add(&cond->__mlibc_seq, 1, __ATOMIC_RELEASE);
 	if(int e = mlibc::sys_futex_wake((int *)&cond->__mlibc_seq); e)
 		__ensure(!"sys_futex_wake() failed");
 	return 0;
@@ -831,7 +1004,7 @@ namespace {
 				}
 
 				// Wait on the futex.
-				mlibc::sys_futex_wait((int *)&rw->__mlibc_m, m_expected | mutex_waiters_bit);
+				mlibc::sys_futex_wait((int *)&rw->__mlibc_m, m_expected | mutex_waiters_bit, nullptr);
 
 				// Opportunistically try to take the lock after we wake up.
 				m_expected = 0;
@@ -932,7 +1105,7 @@ int pthread_rwlock_wrlock(pthread_rwlock_t *rw) {
 		}
 
 		// Wait on the futex.
-		mlibc::sys_futex_wait((int *)&rw->__mlibc_rc, rc_expected | rc_waiters_bit);
+		mlibc::sys_futex_wait((int *)&rw->__mlibc_rc, rc_expected | rc_waiters_bit, nullptr);
 
 		// Re-check the reader counter.
 		rc_expected = __atomic_load_n(&rw->__mlibc_rc, __ATOMIC_ACQUIRE);

@@ -7,6 +7,8 @@
 #include <bits/size_t.h>
 #include <bits/posix/pthread_t.h>
 
+#include <stdint.h>
+
 // pthread.h is required to include sched.h and time.h
 #include <sched.h>
 #include <time.h>
@@ -52,6 +54,13 @@ extern "C" {
 
 #define PTHREAD_CANCELED ((void*) -1)
 
+// values for pthread_key
+#define PTHREAD_KEYS_MAX 1024
+#define PTHREAD_DESTRUCTOR_ITERATIONS 8
+
+#define PTHREAD_INHERIT_SCHED 0
+#define PTHREAD_EXPLICIT_SCHED 1
+
 // TODO: move to own file and include in sys/types.h
 struct __mlibc_threadattr {
 	// TODO: the guardsize attribute needs to be supported here.
@@ -60,8 +69,7 @@ struct __mlibc_threadattr {
 };
 typedef struct __mlibc_threadattr pthread_attr_t;
 
-struct __mlibc_key_data;
-typedef struct __mlibc_key_data *pthread_key_t;
+typedef uintptr_t pthread_key_t;
 
 struct __mlibc_once {
 	unsigned int __mlibc_done;
@@ -88,7 +96,7 @@ typedef struct __mlibc_condattr_struct pthread_condattr_t;
 
 struct  __mlibc_cond {
 	// TODO: the clock attribute needs to be supported here.
-	unsigned int __mlibc_seq;
+	int __mlibc_seq;
 };
 typedef struct __mlibc_cond pthread_cond_t;
 
@@ -134,6 +142,15 @@ int pthread_attr_setguardsize(pthread_attr_t *, size_t);
 int pthread_attr_getscope(const pthread_attr_t *, int);
 int pthread_attr_setscope(pthread_attr_t *, int);
 
+int pthread_attr_getschedpolicy(const pthread_attr_t *__restrict, int *__restrict);
+int pthread_attr_setschedpolicy(pthread_attr_t *, int);
+
+int pthread_attr_getschedparam(const pthread_attr_t *__restrict, struct sched_param *__restrict);
+int pthread_attr_setschedparam(pthread_attr_t *__restrict, const struct sched_param *__restrict);
+
+int pthread_attr_getinheritsched(const pthread_attr_t *__restrict, int *__restrict);
+int pthread_attr_setinheritsched(pthread_attr_t *, int);
+
 // pthread functions.
 int pthread_create(pthread_t *__restrict, const pthread_attr_t *__restrict,
 		void *(*) (void *), void *__restrict);
@@ -144,11 +161,19 @@ int pthread_exit(void *);
 int pthread_join(pthread_t, void **);
 int pthread_detach(pthread_t);
 
-int pthread_cleanup_push(void (*) (void *), void *);
-int pthread_cleanup_pop(int);
+void pthread_cleanup_push(void (*) (void *), void *);
+void pthread_cleanup_pop(int);
 
 int pthread_setname_np(pthread_t, const char *);
 int pthread_getname_np(pthread_t, char *, size_t);
+
+int pthread_attr_setstack(pthread_attr_t *, void *, size_t);
+int pthread_attr_getstack(const pthread_attr_t *, void **, size_t *);
+
+int pthread_getattr_np(pthread_t, pthread_attr_t *);
+
+int pthread_setschedparam(pthread_t, int, const struct sched_param *);
+int pthread_getschedparam(pthread_t, int *, struct sched_param *);
 
 int pthread_setcanceltype(int, int *);
 int pthread_setcancelstate(int, int *);

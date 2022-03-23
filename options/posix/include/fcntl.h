@@ -35,6 +35,8 @@ extern "C" {
 #define O_SYNC __MLIBC_O_SYNC
 #define O_CLOEXEC __MLIBC_O_CLOEXEC
 #define O_PATH __MLIBC_O_PATH
+#define O_LARGEFILE __MLIBC_O_LARGEFILE
+#define O_NOATIME __MLIBC_O_NOATIME
 
 // MISSING: AT macros
 
@@ -61,14 +63,6 @@ int posix_fadvise(int, off_t, off_t, int);
 int posix_fallocate(int, off_t, off_t);
 
 // This is a linux extension
-
-#define AT_EMPTY_PATH 1
-#define AT_SYMLINK_FOLLOW 2
-#define AT_SYMLINK_NOFOLLOW 4
-#define AT_REMOVEDIR 8
-#define AT_EACCESS 512
-
-#define AT_FDCWD -100
 
 struct file_handle {
         unsigned int handle_bytes;

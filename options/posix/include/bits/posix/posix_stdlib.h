@@ -47,6 +47,11 @@ double strtod_l(const char *__restrict__ nptr, char ** __restrict__ endptr, loca
 long double strtold_l(const char *__restrict__ nptr, char ** __restrict__ endptr, locale_t loc);
 float strtof_l(const char *__restrict string, char **__restrict end, locale_t loc);
 
+int getloadavg(double *, int);
+
+// GNU extension
+char *secure_getenv(const char *);
+
 #ifdef __cplusplus
 }
 #endif

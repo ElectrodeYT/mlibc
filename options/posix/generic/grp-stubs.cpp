@@ -7,6 +7,7 @@
 #include <bits/ensure.h>
 
 #include <mlibc/debug.hpp>
+#include <mlibc/posix-sysdeps.hpp>
 
 namespace {
 	thread_local group global_entry;
@@ -168,10 +169,12 @@ void endgrent(void) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 struct group *getgrent(void) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
+
 struct group *getgrgid(gid_t gid) {
 	int err = walk_file(&global_entry, [&] (group *entry) {
 		return entry->gr_gid == gid;
@@ -184,6 +187,7 @@ struct group *getgrgid(gid_t gid) {
 
 	return &global_entry;
 }
+
 int getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t size, struct group **result) {
 	*result = nullptr;
 	int err = walk_file(grp, [&] (group *entry) {
@@ -202,6 +206,7 @@ int getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t size, struct g
 	*result = grp;		
 	return 0;
 }
+
 struct group *getgrnam(const char *name) {
 	int err = walk_file(&global_entry, [&] (group *entry) {
 		return !strcmp(entry->gr_name, name);
@@ -214,6 +219,7 @@ struct group *getgrnam(const char *name) {
 
 	return &global_entry;
 }
+
 int getgrnam_r(const char *name, struct group *grp, char *buffer, size_t size, struct group **result) {
 	*result = nullptr;
 
@@ -233,19 +239,28 @@ int getgrnam_r(const char *name, struct group *grp, char *buffer, size_t size, s
 	*result = grp;		
 	return 0;
 }
+
 void setgrent(void) {
 	__ensure(!"Not implemented");
 	__builtin_unreachable();
 }
 
 int setgroups(size_t size, const gid_t *list) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+	if(!mlibc::sys_setgroups) {
+		MLIBC_MISSING_SYSDEP();
+		errno = ENOSYS;
+		return -1;
+	}
+	if(int e = mlibc::sys_setgroups(size, list); e) {
+		errno = e;
+		return -1;
+	}
+	return 0;
 }
 
-int initgroups(const char *user, gid_t group) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+int initgroups(const char *, gid_t) {
+	mlibc::infoLogger() << "mlibc: initgroups is a stub" << frg::endlog;
+	return 0;
 }
 
 int putgrent(const struct group *, FILE *) {
@@ -259,6 +274,6 @@ struct group *fgetgrent(FILE *) {
 }
 
 int getgrouplist(const char *, gid_t, gid_t *, int *) {
-	__ensure(!"Not implemented");
-	__builtin_unreachable();
+	mlibc::infoLogger() << "mlibc: getgrouplist is a stub" << frg::endlog;
+	return 0;
 }

@@ -10,7 +10,6 @@ libc_include_dirs = [
 	include_directories('options/internal/include'),
 	include_directories('options/elf/include'),
 	include_directories('options/lsb/include'),
-	include_directories('options/glibc/include'),
 	include_directories('options/internal' / host_machine.cpu_family() + '-include')
 ]
 
@@ -28,9 +27,14 @@ build_tests = get_option('build_tests')
 disable_ansi_option = get_option('disable_ansi_option')
 disable_posix_option = get_option('disable_posix_option')
 disable_linux_option = get_option('disable_linux_option')
+disable_linux_headers = get_option('disable_linux_headers_option')
 disable_iconv_option = get_option('disable_iconv_option')
 disable_intl_option = get_option('disable_intl_option')
+disable_glibc_option = get_option('disable_glibc_option')
+disable_crypt_option = get_option('disable_crypt_option')
+disable_bsd_option = get_option('disable_bsd_option')
 internal_conf = configuration_data()
+mlibc_conf = configuration_data()
 
 if not headers_only
 	cxxshim_dep = subproject('cxxshim').get_variable('cxxshim_dep')
@@ -47,32 +51,37 @@ if not headers_only
 	add_project_arguments('-nostdinc', '-fno-builtin', language: ['c', 'cpp'])
 	add_project_arguments('-std=c++20', language: 'cpp')
 	add_project_arguments('-fno-rtti', '-fno-exceptions', language: 'cpp')
+	add_project_arguments('-Wall', '-Wextra', language: ['c', 'cpp'])
 	add_project_link_arguments('-nostdlib', language: ['c', 'cpp'])
 
-	if c_compiler.get_id() == 'gcc'
-		gccdir = run_command('/bin/sh', '-c',
-			' '.join(c_compiler.cmd_array())
-					+ ' -print-search-dirs | sed -n -e "s/install: \(.*\)/\\1/p"',
-			env: ['LANG=C'],
-			check: true).stdout().strip()
-
-		rtdl_include_dirs += include_directories(gccdir / 'include')
-		libc_include_dirs += include_directories(gccdir / 'include')
-		# Ubuntu seems to patch out include-fixed/ (the files are in include/ instead).
-		if fs.exists(gccdir / 'include-fixed')
-			rtdl_include_dirs += include_directories(gccdir / 'include-fixed')
-			libc_include_dirs += include_directories(gccdir / 'include-fixed')
-		endif
-	elif c_compiler.get_id() == 'clang'
-		clangdir = run_command('/bin/sh', '-c',
-			' '.join(c_compiler.cmd_array())
-					+ ' -print-search-dirs | sed -ne "s/libraries: =\(.*\):.*/\\1/p"',
-			env: ['LANG=C'],
-			check: true).stdout().strip()
-
-		rtdl_include_dirs += include_directories(clangdir / 'include')
-		libc_include_dirs += include_directories(clangdir / 'include')
+	searchdirs = run_command(c_compiler.cmd_array(), '-print-search-dirs',
+				check: true).stdout()
+	searchdirs_arr = searchdirs.split('\n')
+	searchline = 'install: '
+	ccdir = ''
+	if c_compiler.get_id() == 'clang'
+		searchline = 'libraries: ='
 	endif
+
+	foreach line : searchdirs_arr
+		if line.startswith(searchline)
+			ccdir = line.strip(searchline)
+			ccdir = ccdir.split(':')[0]
+			break
+		endif
+	endforeach
+
+	if ccdir == ''
+		error('could not find compiler-specific header directory')
+	endif
+
+	if c_compiler.get_id() == 'gcc' and fs.exists(ccdir / 'include-fixed')
+		rtdl_include_dirs += include_directories(ccdir / 'include-fixed')
+		libc_include_dirs += include_directories(ccdir / 'include-fixed')
+	endif
+
+	rtdl_include_dirs += include_directories(ccdir / 'include')
+	libc_include_dirs += include_directories(ccdir / 'include')
 endif
 
 internal_conf.set_quoted('MLIBC_SYSTEM_NAME', host_machine.system())
@@ -86,10 +95,14 @@ internal_conf.set('MLIBC_STATIC_BUILD', static)
 
 # Process sysdeps first, as sysdeps might want to disable unsupported options.
 if host_machine.system() == 'linux'
-	disable_linux_option = true
+	disable_linux_headers = true
 	rtdl_include_dirs += include_directories('sysdeps/linux/include')
 	libc_include_dirs += include_directories('sysdeps/linux/include')
 	subdir('sysdeps/linux')
+elif host_machine.system() == 'aero'
+	rtdl_include_dirs += include_directories('sysdeps/aero/include')
+	libc_include_dirs += include_directories('sysdeps/aero/include')
+	subdir('sysdeps/aero')
 elif host_machine.system() == 'managarm'
 	# TODO: Adopt the include_directories() commands from the managarm meson.build.
 	rtdl_include_dirs += include_directories('sysdeps/managarm/include')
@@ -132,6 +145,15 @@ endif
 # Configuration based on enabled options.
 #----------------------------------------------------------------------------------------
 
+mlibc_conf.set('__MLIBC_ANSI_OPTION', not disable_ansi_option)
+mlibc_conf.set('__MLIBC_POSIX_OPTION', not disable_posix_option)
+mlibc_conf.set('__MLIBC_LINUX_OPTION', not disable_linux_option)
+mlibc_conf.set('__MLIBC_INTL_OPTION', not disable_intl_option)
+mlibc_conf.set('__MLIBC_ICONV_OPTION', not disable_iconv_option)
+mlibc_conf.set('__MLIBC_GLIBC_OPTION', not disable_glibc_option)
+mlibc_conf.set('__MLIBC_CRYPT_OPTION', not disable_crypt_option)
+mlibc_conf.set('__MLIBC_BSD_OPTION', not disable_bsd_option)
+
 if not disable_ansi_option
 	rtdl_include_dirs += include_directories('options/ansi/include')
 	libc_include_dirs += include_directories('options/ansi/include')
@@ -151,16 +173,41 @@ if not disable_intl_option
 	libc_include_dirs += include_directories('options/intl/include')
 endif
 
+if not disable_linux_option
+	rtdl_include_dirs += include_directories('options/linux/include')
+	libc_include_dirs += include_directories('options/linux/include')
+endif
+
+if not disable_glibc_option
+	rtdl_include_dirs += include_directories('options/glibc/include')
+	libc_include_dirs += include_directories('options/glibc/include')
+endif
+
+if not disable_crypt_option
+	libc_include_dirs += include_directories('options/crypt/include')
+endif
+
+if not disable_bsd_option
+	libc_include_dirs += include_directories('options/bsd/include')
+endif
+
+rtdl_include_dirs += include_directories('options/linux-headers/include')
+libc_include_dirs += include_directories('options/linux-headers/include')
 rtdl_include_dirs += include_directories('options/elf/include')
-rtdl_include_dirs += include_directories('options/linux/include')
 libc_include_dirs += include_directories('options/elf/include')
-libc_include_dirs += include_directories('options/linux/include')
+libc_include_dirs += include_directories('.')
 
 #----------------------------------------------------------------------------------------
 
 configure_file(input: 'internal-config.h.in',
 	output: 'internal-config.h',
 	configuration: internal_conf)
+
+configure_file(input: 'mlibc-config.h.in',
+	output: 'mlibc-config.h',
+	configuration: mlibc_conf,
+	install: not no_headers,
+	install_dir: get_option('includedir'))
 
 internal_sources = [
 	'options/internal/generic/allocator.cpp',
@@ -192,8 +239,8 @@ if not no_headers
 	)
 	install_headers(
 		'options/internal/include/bits/wchar_t.h',
+		'options/internal/include/bits/wchar.h',
 		'options/internal/include/bits/wint_t.h',
-		'options/internal/include/bits/feature.h',
 		'options/internal/include/bits/size_t.h',
 		'options/internal/include/bits/types.h',
 		'options/internal/include/bits/ensure.h',
@@ -230,8 +277,11 @@ subdir('options/posix')
 subdir('options/lsb')
 subdir('options/glibc')
 subdir('options/linux')
+subdir('options/linux-headers')
 subdir('options/iconv')
 subdir('options/intl')
+subdir('options/crypt')
+subdir('options/bsd')
 
 if not headers_only
 	if not static
@@ -261,15 +311,16 @@ if not headers_only
 				dependencies: libc_deps,
 				link_with: [ldso_lib],
 				link_whole: libc_sublibs,
-				install: true,
-				pic: true)
+				install: true)
 
 		shared_library('dl', 'libdl/src/dummy.cpp', install: true)
 		shared_library('pthread', 'libpthread/src/dummy.cpp', install: true)
 		shared_library('rt', 'librt/src/dummy.cpp', install: true)
 		shared_library('util', 'libutil/src/dummy.cpp', install: true)
 		shared_library('m', 'libm/src/dummy.cpp', install: true)
-		shared_library('crypt', 'libcrypt/src/dummy.cpp', install: true)
+		if not disable_crypt_option
+			shared_library('crypt', 'libcrypt/src/dummy.cpp', install: true)
+		endif
 		shared_library('resolv', 'libresolv/src/dummy.cpp', install: true)
 	else
 		ldso_lib = static_library('ld', rtdl_sources,
@@ -298,7 +349,9 @@ if not headers_only
 		static_library('rt', 'librt/src/dummy.cpp', install: true)
 		static_library('util', 'libutil/src/dummy.cpp', install: true)
 		static_library('m', 'libm/src/dummy.cpp', install: true)
-		static_library('crypt', 'libcrypt/src/dummy.cpp', install: true)
+		if not disable_crypt_option
+			static_library('crypt', 'libcrypt/src/dummy.cpp', install: true)
+		endif
 		static_library('resolv', 'libresolv/src/dummy.cpp', install: true)
 	endif
 endif

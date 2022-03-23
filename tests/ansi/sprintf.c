@@ -113,5 +113,75 @@ int main() {
 	sprintf(buf, "%#o", 0);
 	assert(!strcmp(buf, "0"));
 
+	// Test 'd' with different size mods to see
+	// if they work
+	sprintf(buf, "%d", 12);
+	assert(!strcmp(buf, "12"));
+	sprintf(buf, "%ld", 12);
+	assert(!strcmp(buf, "12"));
+	sprintf(buf, "%lld", 12);
+	assert(!strcmp(buf, "12"));
+	sprintf(buf, "%zd", 12);
+	assert(!strcmp(buf, "12"));
+	sprintf(buf, "%hd", 12);
+	assert(!strcmp(buf, "12"));
+	sprintf(buf, "%hhd", 12);
+	assert(!strcmp(buf, "12"));
+
+	// Test 'x' with different size mods to see
+	// if they work
+	sprintf(buf, "%x", 12);
+	assert(!strcmp(buf, "c"));
+	sprintf(buf, "%lx", 12);
+	assert(!strcmp(buf, "c"));
+	sprintf(buf, "%llx", 12);
+	assert(!strcmp(buf, "c"));
+	sprintf(buf, "%zx", 12);
+	assert(!strcmp(buf, "c"));
+	sprintf(buf, "%hx", 12);
+	assert(!strcmp(buf, "c"));
+	sprintf(buf, "%hhx", 12);
+	assert(!strcmp(buf, "c"));
+
+	// Test 'X' with different size mods to see
+	// if they work
+	sprintf(buf, "%X", 12);
+	assert(!strcmp(buf, "C"));
+	sprintf(buf, "%lX", 12);
+	assert(!strcmp(buf, "C"));
+	sprintf(buf, "%llX", 12);
+	assert(!strcmp(buf, "C"));
+	sprintf(buf, "%zX", 12);
+	assert(!strcmp(buf, "C"));
+	sprintf(buf, "%hX", 12);
+	assert(!strcmp(buf, "C"));
+	sprintf(buf, "%hhX", 12);
+	assert(!strcmp(buf, "C"));
+
+	// Test 'o' with different size mods to see
+	// if they work
+	sprintf(buf, "%o", 12);
+	assert(!strcmp(buf, "14"));
+	sprintf(buf, "%lo", 12);
+	assert(!strcmp(buf, "14"));
+	sprintf(buf, "%llo", 12);
+	assert(!strcmp(buf, "14"));
+	sprintf(buf, "%zo", 12);
+	assert(!strcmp(buf, "14"));
+	sprintf(buf, "%ho", 12);
+	assert(!strcmp(buf, "14"));
+	sprintf(buf, "%hho", 12);
+	assert(!strcmp(buf, "14"));
+
+	// Test %n$ syntax.
+	sprintf(buf, "%1$d", 12);
+	assert(!strcmp(buf, "12"));
+	sprintf(buf, "%1$d %1$d", 12);
+	assert(!strcmp(buf, "12 12"));
+	sprintf(buf, "%1$d %2$d %1$d", 12, 14);
+	assert(!strcmp(buf, "12 14 12"));
+	sprintf(buf, "%1$d %2$s %2$s", 12, "foo");
+	assert(!strcmp(buf, "12 foo foo"));
+
 	return 0;
 }

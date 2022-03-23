@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <mlibc/tcb.hpp>
 #include <mlibc/thread.hpp>
-#include <bits/feature.h>
+#include <mlibc-config.h>
 #include <utility>
 
 // GCC allows register + asm placement in extern "C" mode, but not in C++ mode.
@@ -159,11 +159,11 @@ namespace mlibc {
 
 	template<typename... T>
 	sc_result_t do_cp_syscall(int sc, T... args) {
-#if __MLIBC_POSIX_OPTION && !defined(MLIBC_BUILDING_RTDL)
+#if defined(__MLIBC_POSIX_OPTION) && !defined(MLIBC_BUILDING_RTDL)
 		auto result = static_cast<sc_result_t>(do_nargs_cp_syscall(sc, sc_cast(args)...));
 		if (int e = sc_error(result); e) {
 			auto tcb = reinterpret_cast<Tcb*>(get_current_tcb());
-			if (tcb_async_cancel(tcb->cancelBits) && e == EINTR) {
+			if (tcb_cancelled(tcb->cancelBits) && e == EINTR) {
 				__mlibc_do_cancel();
 				__builtin_unreachable();
 			}

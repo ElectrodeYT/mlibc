@@ -8,19 +8,35 @@ ansi_test_cases = [
 	'strverscmp',
 	'strftime',
 	'strchr',
-	'strrchr'
+	'strrchr',
+	'wcsrtombs',
+	'wmemcmp',
+	'time',
+	'wcsdup',
+	'wcsncasecmp'
+]
+
+bsd_test_cases = [
+	'ns_get_put'
 ]
 
 posix_test_cases = [
 	'inet_ntop',
 	'inet_pton',
 	'pthread_rwlock',
+	'pthread_cond',
 	'pthread_create',
 	'pthread_cancel',
+	'pthread_atfork',
+	'pthread_cleanup',
+	'pthread_kill',
+	'pthread_key',
 	'pwd',
 	'getaddrinfo',
 	'getdelim',
 	'getnameinfo',
+	'getservbyname',
+	'getservbyport',
 	'grp',
 	'dprintf',
 	'posix_spawn',
@@ -29,7 +45,12 @@ posix_test_cases = [
 	'search',
 	'open_memstream',
 	'popen',
-	'system' # This test should be in the ANSI tests, but it depends on sys/wait.h
+	'system', # This test should be in the ANSI tests, but it depends on sys/wait.h
+	'sigsuspend',
+	'sigaltstack',
+	'realpath',
+	'ffs',
+	'getcwd'
 ]
 
 posix_fail_test_cases = [
@@ -37,8 +58,16 @@ posix_fail_test_cases = [
 ]
 
 glibc_test_cases = [
-	'getopt'
+	'getopt',
+	'ffsl-ffsll'
 ]
+
+rtdl_test_cases = [
+]
+
+if not static
+	rtdl_test_cases += 'dl_iterate_phdr'
+endif
 
 test_sources = [
 	crt
@@ -58,6 +87,18 @@ if not disable_ansi_option
 			link_args: ['-Wl,--dynamic-linker=' + meson.build_root() + '/ld.so',
 				'-no-pie'])
 		test('ansi/' + f, exec)
+	endforeach
+endif
+
+if not disable_bsd_option
+	foreach f : bsd_test_cases
+		exec = executable('ansi-' + f, ['bsd/' + f + '.c', test_sources],
+			link_with: libc, include_directories: libc_include_dirs,
+			build_rpath: meson.build_root(),
+			c_args: '-no-pie',
+			link_args: ['-Wl,--dynamic-linker=' + meson.build_root() + '/ld.so',
+				'-no-pie'])
+		test('bsd/' + f, exec)
 	endforeach
 endif
 
@@ -95,3 +136,13 @@ if not disable_posix_option
 		test('glibc/' + f, exec)
 	endforeach
 endif
+
+foreach f : rtdl_test_cases
+    exec = executable('rtdl-' + f, ['rtdl/' + f + '.c', test_sources],
+	    link_with: libc, include_directories: libc_include_dirs,
+	    build_rpath: meson.build_root(),
+	    c_args: '-no-pie',
+	    link_args: ['-Wl,--dynamic-linker=' + meson.build_root() + '/ld.so',
+		    '-no-pie'])
+    test('rtdl/' + f, exec)
+endforeach

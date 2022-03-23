@@ -1,13 +1,11 @@
 
 #include <string.h>
-#include <sys/epoll.h>
 #include <sys/select.h>
 #include <unistd.h>
 #include <errno.h>
 
-#include <mlibc/debug.hpp>
 #include <bits/ensure.h>
-#include <bits/feature.h>
+#include <mlibc-config.h>
 
 #include <mlibc/posix-sysdeps.hpp>
 
@@ -36,7 +34,7 @@ int select(int num_fds, fd_set *__restrict read_set, fd_set *__restrict write_se
 	}
 
 	int num_events = 0;
-	struct timespec timeouts = {0};
+	struct timespec timeouts = {};
 	struct timespec *timeout_ptr = NULL;
 	if (timeout) {
 		timeouts.tv_sec = timeout->tv_sec;
