@@ -14,8 +14,8 @@
 #define HIDDEN  __attribute__ ((visibility ("hidden")))
 #define EXPORT  __attribute__ ((visibility ("default")))
 
-static constexpr bool logEntryExit = false;
-static constexpr bool logStartup = false;
+static constexpr bool logEntryExit = true;
+static constexpr bool logStartup = true;
 
 #ifndef MLIBC_STATIC_BUILD
 extern HIDDEN void *_GLOBAL_OFFSET_TABLE_[];
@@ -139,6 +139,11 @@ extern "C" void *interpreterMain(uintptr_t *entry_stack) {
 		mlibc::infoLogger() << "ldso: Own base address is: 0x"
 				<< frg::hex_fmt(ldso_base) << frg::endlog;
 		mlibc::infoLogger() << "ldso: Own dynamic section is at: " << _DYNAMIC << frg::endlog;
+		mlibc::infoLogger() << "ldso: Own _GLOBAL_OFFSET_TABLE[0] is: 0x"
+				<< frg::hex_fmt(_GLOBAL_OFFSET_TABLE_[0]) << frg::endlog;
+		mlibc::infoLogger() << "ldso: Own _GLOBAL_OFFSET_TABLE is at: 0x"
+				<< frg::hex_fmt((uint64_t)_GLOBAL_OFFSET_TABLE_) << frg::endlog;
+				
 	}
 
 // on aarch64 these lines corrupt unrelated GOT entries (entries for ld.so functions)
