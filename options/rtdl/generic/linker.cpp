@@ -148,6 +148,8 @@ SharedObject *ObjectRepository::requestObjectWithName(frg::string_view name,
 	if(it)
 		return *it;
 
+	__ensure(false);
+
 	const char *libdirs[4] = {
 		"/lib/",
 		"/lib64/",
@@ -467,8 +469,9 @@ void ObjectRepository::_parseDynamic(SharedObject *object) {
 	__ensure(object->dynamic);
 
 	frg::optional<ptrdiff_t> runpath_offset;
-
+	mlibc::infoLogger() << "ldso: parseDy thing 1" << frg::endlog;
 	for(size_t i = 0; object->dynamic[i].d_tag != DT_NULL; i++) {
+		mlibc::infoLogger() << "ldso: parseDy thing 4" << frg::endlog;
 		Elf64_Dyn *dynamic = &object->dynamic[i];
 		switch(dynamic->d_tag) {
 		// handle hash table, symbol table and string table
@@ -497,6 +500,7 @@ void ObjectRepository::_parseDynamic(SharedObject *object) {
 					+ dynamic->d_un.d_ptr);
 			break;
 		case DT_JMPREL:
+			mlibc::infoLogger() << "ldso: parseDy thing 2" << frg::endlog;
 			object->lazyRelocTableOffset = dynamic->d_un.d_ptr;
 			break;
 		case DT_PLTRELSZ:
@@ -541,6 +545,7 @@ void ObjectRepository::_parseDynamic(SharedObject *object) {
 			runpath_offset = dynamic->d_un.d_val;
 			break;
 		case DT_INIT:
+			mlibc::infoLogger() << "ldso: parseDy thing 3" << frg::endlog;
 			if(dynamic->d_un.d_ptr != 0)
 				object->initPtr = (InitFuncPtr)(object->baseAddress + dynamic->d_un.d_ptr);
 			break;
@@ -1373,10 +1378,13 @@ extern "C" void *__mlibcTlsdescDynamic(void *);
 #endif
 
 void Loader::_processLazyRelocations(SharedObject *object) {
+	mlibc::infoLogger() << "rtdl: thing 1" << object->name << frg::endlog;
 	if(object->globalOffsetTable == nullptr) {
 		__ensure(object->lazyRelocTableOffset == 0);
 		return;
 	}
+	mlibc::infoLogger() << "rtdl: thing 1.5" << object->name << frg::endlog;
+	
 	object->globalOffsetTable[1] = object;
 	object->globalOffsetTable[2] = (void *)&pltRelocateStub;
 
@@ -1385,18 +1393,21 @@ void Loader::_processLazyRelocations(SharedObject *object) {
 
 	// adjust the addresses of JUMP_SLOT relocations
 	__ensure(object->lazyExplicitAddend);
+	mlibc::infoLogger() << "rtdl: thing 2" << object->name << frg::endlog;
 	for(size_t offset = 0; offset < object->lazyTableSize; offset += sizeof(Elf64_Rela)) {
 		auto reloc = (Elf64_Rela *)(object->baseAddress + object->lazyRelocTableOffset + offset);
 		Elf64_Xword type = ELF64_R_TYPE(reloc->r_info);
 		Elf64_Xword symbol_index = ELF64_R_SYM(reloc->r_info);
 		uintptr_t rel_addr = object->baseAddress + reloc->r_offset;
-
+		mlibc::infoLogger() << "rtdl: thing 3" << object->name << frg::endlog;
+			
 		switch (type) {
 #if defined(__x86_64__)
 		case R_X86_64_JUMP_SLOT:
 #elif defined(__aarch64__)
 		case R_AARCH64_JUMP_SLOT:
 #endif
+			mlibc::infoLogger() << "rtdl: lazy JUMP_SLOT in object " << object->name << frg::endlog;
 			if(eagerBinding) {
 				auto symbol = (Elf64_Sym *)(object->baseAddress + object->symbolTableOffset
 						+ symbol_index * sizeof(Elf64_Sym));

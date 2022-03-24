@@ -133,7 +133,7 @@ elif host_machine.system() == 'dripos'
 	libc_include_dirs += include_directories('sysdeps/dripos/include')
 	subdir('sysdeps/dripos')
 elif host_machine.system() == 'hos'
-	# disable_linux_option = true
+	disable_linux_option = true
 	rtdl_include_dirs += include_directories('sysdeps/hos/include')
 	libc_include_dirs += include_directories('sysdeps/hos/include')
 	subdir('sysdeps/hos')
