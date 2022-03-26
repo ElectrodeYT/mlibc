@@ -17,6 +17,8 @@ namespace mlibc {
 #define SYSCALL_CLOSE 7
 #define SYSCALL_READ 8
 #define SYSCALL_WRITE 9
+#define SYSCALL_SEEK 10
+#define SYSCALL_SET_TCB 11
 
 
 
@@ -124,7 +126,7 @@ int sys_clone(void *entry, void *user_arg, void *tcb, pid_t *tid_out);
 int sys_anon_allocate(size_t size, void **pointer);
 int sys_anon_free(void *pointer, size_t size);
 int sys_tcb_set(void *pointer);
-int sys_isatty(int fd);
+// int sys_isatty(int fd);
 
 }
 

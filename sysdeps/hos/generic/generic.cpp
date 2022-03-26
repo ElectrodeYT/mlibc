@@ -65,7 +65,7 @@ int sys_anon_free(void *pointer, size_t size) {
 }
 
 int sys_open(const char *path, int flags, int *fd) {
-    int64_t ret = (int64_t)syscall_2arg_1ret(SYSCALL_OPEN, (uint64_t)path, flags);
+    int64_t ret = (int64_t)syscall_3arg_1ret(SYSCALL_OPEN, (uint64_t)path, strlen(path), flags);
     if(ret < 0) { return -ret; }
     *fd = ret;
     return 0;
@@ -77,14 +77,14 @@ int sys_close(int fd) {
 }
 
 int sys_write(int fd, const void *buf, size_t count, ssize_t *bytes_written) {
-    int64_t ret = (int64_t)syscall_3arg_1ret(SYSCALL_WRITE, fd, (uint64_t)buf, count);
+    int64_t ret = (int64_t)syscall_3arg_1ret(SYSCALL_WRITE, (uint64_t)buf, count, fd);
     if(ret < 0) { return -ret; }
     *bytes_written = ret;
     return 0;
 }
 
 int sys_read(int fd, void *buf, size_t count, ssize_t *bytes_read) {
-    int64_t ret = (int64_t)syscall_3arg_1ret(SYSCALL_READ, fd, (uint64_t)buf, count);
+    int64_t ret = (int64_t)syscall_3arg_1ret(SYSCALL_READ, (uint64_t)buf, count, fd);
     if(ret < 0) { return -ret; }
     *bytes_read = ret;
     return 0;
@@ -100,8 +100,10 @@ void sys_libc_panic() {
 }
 
 int sys_seek(int fd, off_t offset, int whence, off_t *new_offset) {
-    return ENOSYS;
-    (void)fd; (void)offset; (void)whence; (void)new_offset;
+    int64_t tmp = (int64_t)syscall_3arg_1ret(SYSCALL_SEEK, fd, offset, whence);
+    if(tmp < 0) { return -tmp; }
+    *new_offset = tmp;
+    return 0;
 }
 
 int sys_futex_wake(int *pointer) {
@@ -125,17 +127,16 @@ int sys_clone(void *entry, void *user_arg, void *tcb, pid_t *tid_out) {
 }
 
 int sys_tcb_set(void *pointer) {
-    //return ENOSYS;
+    syscall_1arg_0ret(SYSCALL_SET_TCB, (uint64_t)pointer);
     return 0;
-    (void)pointer;
 }
-
+/*
 int sys_isatty(int fd) {
     infoLogger() << "haha sys_isatty go brrr" << frg::endlog;
     return ENOTTY;
     (void)fd;
 }
-
+*/
 int sys_clock_get(int clock, time_t* secs, long* nanos) {
     return 0;
 }

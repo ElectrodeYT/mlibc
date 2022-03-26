@@ -52,7 +52,7 @@ if not headers_only
 	add_project_arguments('-std=c++20', language: 'cpp')
 	add_project_arguments('-fno-rtti', '-fno-exceptions', language: 'cpp')
 	add_project_arguments('-Wall', '-Wextra', language: ['c', 'cpp'])
-	add_project_link_arguments('-nostdlib', '-Wl,-shared', language: ['c', 'cpp'])
+	add_project_link_arguments('-nostdlib', '-Wl,-shared,--hash-style=sysv', language: ['c', 'cpp'])
 
 	searchdirs = run_command(c_compiler.cmd_array(), '-print-search-dirs',
 				check: true).stdout()
