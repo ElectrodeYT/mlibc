@@ -302,8 +302,6 @@ int abstract_file::_init_type() {
 int abstract_file::_init_bufmode() {
 	if(_bufmode != buffer_mode::unknown)
 		return 0;
-	infoLogger() << "this = " << this << frg::endlog;
-	infoLogger() << "_bufmode = " << &_bufmode << frg::endlog;
 	
 	if(determine_bufmode(&_bufmode))
 		return -1;

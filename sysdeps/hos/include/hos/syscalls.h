@@ -19,6 +19,7 @@ namespace mlibc {
 #define SYSCALL_WRITE 9
 #define SYSCALL_SEEK 10
 #define SYSCALL_SET_TCB 11
+#define SYSCALL_ISATTY 12
 
 
 

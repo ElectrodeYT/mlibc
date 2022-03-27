@@ -22,8 +22,11 @@ void sys_exit(int ret) {
     }
 }
 
-pid_t sys_fork() {
-    return (pid_t)syscall_0arg_1ret(SYSCALL_FORK);
+int sys_fork(pid_t* child) {
+    int64_t ret = syscall_0arg_1ret(SYSCALL_FORK);
+    if(ret < 0) { return ret; }
+    *child = ret;
+    return 0;
 }
 
 uint64_t sys_mmap(uint64_t pointer, size_t size, int flags) {
@@ -130,13 +133,11 @@ int sys_tcb_set(void *pointer) {
     syscall_1arg_0ret(SYSCALL_SET_TCB, (uint64_t)pointer);
     return 0;
 }
-/*
+
 int sys_isatty(int fd) {
-    infoLogger() << "haha sys_isatty go brrr" << frg::endlog;
-    return ENOTTY;
-    (void)fd;
+    return -syscall_1arg_1ret(SYSCALL_ISATTY, (int64_t)fd);
 }
-*/
+
 int sys_clock_get(int clock, time_t* secs, long* nanos) {
     return 0;
 }
