@@ -93,6 +93,16 @@ int sys_read(int fd, void *buf, size_t count, ssize_t *bytes_read) {
     return 0;
 }
 
+int sys_execve(const char *path, char *const argv[], char *const envp[]) {
+    int ret = (int64_t)syscall_4arg_1ret(SYSCALL_EXEC, (uint64_t)path, strlen(path), (uint64_t)argv, (uint64_t)envp);
+    if(ret < 0) { return -ret; }
+    return 0;
+}
+
+int sys_waitpid(pid_t pid, int *status, int flags, pid_t *ret_pid) {
+    return -ENOSYS;
+}
+
 void sys_libc_log(const char* msg) {
     sys_debug_write(msg, strlen(msg));
 }

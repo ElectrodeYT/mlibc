@@ -20,6 +20,8 @@ namespace mlibc {
 #define SYSCALL_SEEK 10
 #define SYSCALL_SET_TCB 11
 #define SYSCALL_ISATTY 12
+#define SYSCALL_EXEC 13
+#define SYSCALL_WAIT 14
 
 
 
@@ -39,6 +41,19 @@ __attribute__((always_inline)) static inline void syscall_2arg_0ret(uint64_t sys
         mov %2, %%rcx;  \
         int $0x80;      \
     " : : "r" ((uint64_t)syscall), "r" ((uint64_t)arg1), "r" ((uint64_t)arg2) : "rax", "rbx", "rcx", "memory");
+    asm volatile("": : :"memory");
+}
+
+__attribute__((always_inline)) static inline void syscall_4arg_0ret(uint64_t syscall, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
+    uint64_t ret;
+    asm volatile("      \
+        mov %0, %%rax;  \
+        mov %1, %%rbx;  \
+        mov %2, %%rcx;  \
+        mov %3, %%rdx;  \
+        mov %4, %%rdi;  \
+        int $0x80;      \
+    " : : "r" ((uint64_t)syscall), "r" ((uint64_t)arg1), "r" ((uint64_t)arg2), "r" ((uint64_t)arg3), "r" ((uint64_t)arg4) : "rax", "rbx", "rcx", "rdx", "memory");
     asm volatile("": : :"memory");
 }
 
