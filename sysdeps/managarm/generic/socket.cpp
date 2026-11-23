@@ -228,11 +228,12 @@ int Sysdeps<Peername>::operator()(    int fd, struct sockaddr *addr_ptr, socklen
 
 namespace {
 
-std::array<std::pair<int, int>, 8> getsockopt_passthrough = {{
+std::array<std::pair<int, int>, 9> getsockopt_passthrough = {{
     {SOL_SOCKET, SO_PROTOCOL},
     {SOL_SOCKET, SO_PEERCRED},
     {SOL_NETLINK, NETLINK_LIST_MEMBERSHIPS},
     {SOL_SOCKET, SO_TYPE},
+    {SOL_SOCKET, SO_ERROR},
     {SOL_SOCKET, SO_ACCEPTCONN},
     {SOL_SOCKET, SO_PEERPIDFD},
 	{SOL_SOCKET, SO_BINDTODEVICE},
@@ -251,12 +252,6 @@ int Sysdeps<GetSockopt>::operator()(int fd, int layer, int number, void *__restr
 	} else if (layer == SOL_SOCKET && number == SO_RCVBUF) {
 		// This is really only relevant on Linux
 		*(int *)buffer = 4096;
-		return 0;
-	} else if (layer == SOL_SOCKET && number == SO_ERROR) {
-		mlibc::infoLogger() << "\e[31mmlibc: getsockopt() call with SOL_SOCKET and SO_ERROR is "
-		                       "unimplemented, hardcoding 0\e[39m"
-		                    << frg::endlog;
-		*(int *)buffer = 0;
 		return 0;
 	} else if (layer == SOL_SOCKET && number == SO_KEEPALIVE) {
 		mlibc::infoLogger() << "\e[31mmlibc: getsockopt() call with SOL_SOCKET and SO_KEEPALIVE is "
